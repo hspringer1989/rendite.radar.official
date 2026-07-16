@@ -70,6 +70,9 @@ PUBLIC_MEDIA_DIR = _get("PUBLIC_MEDIA_DIR")
 POSTING_SLOTS = _get_list("POSTING_SLOTS", "08:00,12:30,18:00")
 TIMEZONE = _get("TIMEZONE", "Europe/Berlin")
 
+# ── Branding ──────────────────────────────────────────────────────────────
+BRAND_NAME = _get("BRAND_NAME", "Finanzhappen")
+
 # ── Pipeline ──────────────────────────────────────────────────────────────
 MIN_TREND_SCORE = float(_get("MIN_TREND_SCORE", "0.65"))
 DATA_DIR = BASE_DIR / "data"

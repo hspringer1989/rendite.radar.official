@@ -19,7 +19,8 @@ Struktur (Retention-optimiert):
 muss in 2 Sekunden Aufmerksamkeit erzwingen ("Diese 3 Fehler kosten dich 100.000 €...")
 2. 3–5 kurze Segmente: ein Gedanke pro Segment, einfache Sprache, konkrete Zahlen, \
 direkte Ansprache ("du")
-3. CTA am Ende: Folgen + "Mehr dazu über den Link in der Bio" (nur wenn thematisch passend)
+3. CTA am Ende: "Folge {brand} für deinen täglichen Finanzhappen" (Wortlaut variieren) + \
+"Mehr dazu über den Link in der Bio" (nur wenn thematisch passend)
 
 COMPLIANCE (zwingend, keine Ausnahmen):
 - KEINE Anlageberatung, KEINE Kauf-/Verkaufsempfehlung für einzelne Aktien/Coins
@@ -55,7 +56,7 @@ Gib genau diese JSON-Struktur zurück:
 def generate_script(trend: TrendItem, llm: LLMProvider) -> ReelScript | None:
     target_words = int(config.REEL_TARGET_SECONDS * _WORDS_PER_SECOND)
     raw = llm.complete(
-        system=_SYSTEM_PROMPT.format(disclaimer=_DISCLAIMER),
+        system=_SYSTEM_PROMPT.format(disclaimer=_DISCLAIMER, brand=config.BRAND_NAME),
         user=_USER_TEMPLATE.format(
             title=trend.title,
             summary=trend.summary or "(kein weiterer Kontext)",
