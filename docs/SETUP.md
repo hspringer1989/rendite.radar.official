@@ -17,8 +17,15 @@ die Affiliate-Anmeldungen (Schritt 5) haben Prüf-Vorlauf, daher früh starten.
 
 ## 2. Meta-Developer-App + API-Zugang (Instagram-Login-Variante, empfohlen)
 
-1. https://developers.facebook.com → "Meine Apps" → App erstellen → Use case
-   **"Instagram"** wählen (API setup with Instagram login).
+0. **Voraussetzung — einmalige Developer-Registrierung** (sonst fehlt "Meine Apps"):
+   Auf developers.facebook.com mit dem persönlichen Facebook-Konto einloggen
+   (Portal-Login läuft über Facebook; eine Facebook-*Seite* bleibt trotzdem unnötig),
+   dann über https://developers.facebook.com/async/registration registrieren:
+   Bedingungen akzeptieren → E-Mail + Telefon per Code bestätigen → Beruf wählen.
+1. "Meine Apps" (oben rechts, oder direkt https://developers.facebook.com/apps/creation/)
+   → App erstellen → App-Name + Kontakt-E-Mail → Use case **"Instagram"** wählen
+   (Wortlaut variiert, z. B. "Verwalte Nachrichten und Inhalte auf Instagram");
+   Business-Portfolio-Verknüpfung kann übersprungen werden.
 2. In der App unter **Instagram → API setup with Instagram business login**:
    das Renditeradar-Konto als Instagram-Tester/Konto hinzufügen und autorisieren
    (Berechtigungen `instagram_business_basic`, `instagram_business_content_publish`,
