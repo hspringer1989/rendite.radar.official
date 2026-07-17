@@ -65,6 +65,10 @@ IG_USER_ID = _get("IG_USER_ID")
 FB_APP_ID = _get("FB_APP_ID")
 FB_APP_SECRET = _get("FB_APP_SECRET")
 GRAPH_API_VERSION = _get("GRAPH_API_VERSION", "v23.0")
+# "Instagram API with Instagram Login" (creator account, no Facebook page):
+#   https://graph.instagram.com — the default and recommended path.
+# Classic Facebook-Login variant: https://graph.facebook.com
+GRAPH_BASE_URL = _get("GRAPH_BASE_URL", "https://graph.instagram.com").rstrip("/")
 PUBLIC_MEDIA_BASE_URL = _get("PUBLIC_MEDIA_BASE_URL").rstrip("/")
 PUBLIC_MEDIA_DIR = _get("PUBLIC_MEDIA_DIR")
 POSTING_SLOTS = _get_list("POSTING_SLOTS", "08:00,12:30,18:00")

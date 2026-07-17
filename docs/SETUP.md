@@ -5,31 +5,38 @@ die Affiliate-Anmeldungen (Schritt 5) haben Prüf-Vorlauf, daher früh starten.
 
 ## 1. Instagram-Profil anlegen
 
-1. Neues Instagram-Konto erstellen (App oder Web). Handle-Kriterien: kurz, merkbar,
-   Finanz-Bezug, ohne Zahlen/Unterstriche wenn möglich (z. B. `klargeld.daily`,
-   `finanzblick.de`, `geldwissen.reels` — Verfügbarkeit prüfen).
+1. Neues Instagram-Konto erstellen (App: "Konto hinzufügen" → "Neues Konto erstellen",
+   eigene E-Mail-Adresse verwenden). **Handle-Verfügbarkeit nur über das
+   Username-Feld im Registrierungsdialog prüfen** — Google-/Web-Suchen liefern
+   False Negatives.
 2. Profil einrichten: Profilbild (einfaches Logo/Icon, hoher Kontrast), Bio mit
    Nutzenversprechen ("Täglich Finanzwissen in 45 Sekunden") + Platz für den Link.
 3. **In ein Professional-Konto umwandeln:** Einstellungen → Konto → "Zu professionellem
-   Konto wechseln" → **Creator** oder **Business** (Business empfohlen für die API).
-4. **Facebook-Seite erstellen und verknüpfen** (Voraussetzung für die Graph API):
-   facebook.com → Seite erstellen (gleicher Name) → dann in Instagram:
-   Einstellungen → Konto-Center bzw. "Verknüpfte Konten" → Facebook-Seite verbinden.
+   Konto wechseln" → **Creator** genügt (Business geht auch). Eine Facebook-Seite ist
+   mit dem empfohlenen API-Weg (Instagram-Login) NICHT nötig.
 
-## 2. Meta-Developer-App + API-Zugang
+## 2. Meta-Developer-App + API-Zugang (Instagram-Login-Variante, empfohlen)
 
-1. https://developers.facebook.com → "Meine Apps" → App erstellen → Typ **Business**.
-2. Produkt **Instagram** bzw. "Instagram Graph API" hinzufügen.
-3. Im **Graph API Explorer** (Tools): App auswählen, User-Token generieren mit den
-   Berechtigungen `instagram_basic`, `instagram_content_publish`, `instagram_manage_insights`,
-   `pages_show_list`, `pages_read_engagement`.
-4. Kurzlebigen Token in einen **Long-lived Token** (60 Tage) tauschen:
-   `GET /oauth/access_token?grant_type=fb_exchange_token&client_id={app-id}&client_secret={app-secret}&fb_exchange_token={token}`
-5. **IG-User-ID ermitteln:** `GET /me/accounts` → Page-ID → `GET /{page-id}?fields=instagram_business_account`.
-6. In `.env` eintragen: `IG_ACCESS_TOKEN`, `IG_USER_ID`, `FB_APP_ID`, `FB_APP_SECRET`.
+1. https://developers.facebook.com → "Meine Apps" → App erstellen → Use case
+   **"Instagram"** wählen (API setup with Instagram login).
+2. In der App unter **Instagram → API setup with Instagram business login**:
+   das Renditeradar-Konto als Instagram-Tester/Konto hinzufügen und autorisieren
+   (Berechtigungen `instagram_business_basic`, `instagram_business_content_publish`,
+   `instagram_business_manage_insights`).
+3. Dort direkt den **Access Token generieren** (long-lived, 60 Tage) und die
+   angezeigte **Instagram-User-ID** kopieren.
+4. In `.env` eintragen: `IG_ACCESS_TOKEN`, `IG_USER_ID`
+   (`GRAPH_BASE_URL` bleibt auf dem Default `https://graph.instagram.com`).
+5. Token-Verlängerung: `GET https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=...`
+   (macht `refresh_long_lived_token()` in `src/publish/instagram.py`).
 
-> Solange nur das eigene Konto (mit App-Rolle) bespielt wird, reicht der
+> Solange nur das eigene Konto (mit App-Rolle/Tester) bespielt wird, reicht der
 > Entwicklermodus — kein App-Review nötig.
+>
+> Alternative (klassische Facebook-Login-Variante mit verknüpfter Facebook-Seite):
+> `GRAPH_BASE_URL=https://graph.facebook.com` + `FB_APP_ID`/`FB_APP_SECRET` setzen;
+> Berechtigungen dann `instagram_basic`, `instagram_content_publish`,
+> `instagram_manage_insights`, `pages_show_list`.
 
 ## 3. Dienste-Accounts
 

@@ -3,6 +3,10 @@
 Flow: stage the MP4 under a public URL (nginx serves PUBLIC_MEDIA_DIR) →
 create a REELS media container → poll until FINISHED → media_publish →
 delete the staged file. Well under the 25-posts/24h API limit at 1–3 posts/day.
+
+Works with both API variants via GRAPH_BASE_URL: graph.instagram.com
+(Instagram login, creator account, no Facebook page — default) and
+graph.facebook.com (classic Facebook login).
 """
 import asyncio
 import secrets
@@ -14,7 +18,6 @@ from loguru import logger
 
 import config
 
-_GRAPH = "https://graph.facebook.com"
 _POLL_INTERVAL_S = 10
 _POLL_MAX_TRIES = 60  # ≈10 min of server-side video processing
 
@@ -45,7 +48,7 @@ async def publish_reel(video_path: str, caption: str) -> str:
         raise PublishError("Instagram-Publishing ist nicht konfiguriert (.env)")
 
     staged, video_url = _stage_video(video_path)
-    base = f"{_GRAPH}/{config.GRAPH_API_VERSION}/{config.IG_USER_ID}"
+    base = f"{config.GRAPH_BASE_URL}/{config.GRAPH_API_VERSION}/{config.IG_USER_ID}"
     token = {"access_token": config.IG_ACCESS_TOKEN}
 
     try:
@@ -64,7 +67,7 @@ async def publish_reel(video_path: str, caption: str) -> str:
 
             for _ in range(_POLL_MAX_TRIES):
                 status = (await client.get(
-                    f"{_GRAPH}/{config.GRAPH_API_VERSION}/{container_id}",
+                    f"{config.GRAPH_BASE_URL}/{config.GRAPH_API_VERSION}/{container_id}",
                     params={"fields": "status_code", **token},
                 )).json().get("status_code")
                 if status == "FINISHED":
@@ -94,7 +97,7 @@ async def fetch_insights(media_id: str) -> dict[str, int]:
     metrics = "views,reach,likes,comments,saved,shares"
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.get(
-            f"{_GRAPH}/{config.GRAPH_API_VERSION}/{media_id}/insights",
+            f"{config.GRAPH_BASE_URL}/{config.GRAPH_API_VERSION}/{media_id}/insights",
             params={"metric": metrics, "access_token": config.IG_ACCESS_TOKEN},
         )
         body = response.json()
@@ -111,14 +114,24 @@ async def fetch_insights(media_id: str) -> dict[str, int]:
 async def refresh_long_lived_token() -> str | None:
     """Exchange the current token for a fresh 60-day one (call e.g. weekly).
     Returns the new token — persisting it into .env is up to the caller."""
-    if not (config.FB_APP_ID and config.FB_APP_SECRET):
-        return None
     async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.get(f"{_GRAPH}/{config.GRAPH_API_VERSION}/oauth/access_token", params={
-            "grant_type": "fb_exchange_token",
-            "client_id": config.FB_APP_ID,
-            "client_secret": config.FB_APP_SECRET,
-            "fb_exchange_token": config.IG_ACCESS_TOKEN,
-        })
+        if "graph.instagram.com" in config.GRAPH_BASE_URL:
+            # Instagram-login tokens refresh themselves, no app secret needed
+            response = await client.get(f"{config.GRAPH_BASE_URL}/refresh_access_token", params={
+                "grant_type": "ig_refresh_token",
+                "access_token": config.IG_ACCESS_TOKEN,
+            })
+        else:
+            if not (config.FB_APP_ID and config.FB_APP_SECRET):
+                return None
+            response = await client.get(
+                f"{config.GRAPH_BASE_URL}/{config.GRAPH_API_VERSION}/oauth/access_token",
+                params={
+                    "grant_type": "fb_exchange_token",
+                    "client_id": config.FB_APP_ID,
+                    "client_secret": config.FB_APP_SECRET,
+                    "fb_exchange_token": config.IG_ACCESS_TOKEN,
+                },
+            )
     body = response.json()
     return body.get("access_token")
