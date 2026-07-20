@@ -89,13 +89,19 @@ def builtin_fake() -> "FakeLLM":
     })
     stock_analysis = json.dumps({
         "candidates": [
-            {"ticker": t, "analysis": (
-                "Charttechnik: Kurs über der 50-Tage-Linie, Trend intakt. "
-                "Fundamental: solide Kennzahlen. Risiko: Rücksetzer bei Marktschwäche möglich. "
-                "Rein edukative Einordnung, keine Empfehlung.")}
+            {
+                "ticker": t,
+                "chart": ("Der Kurs liegt über seiner 50-Tage-Linie, der Trend zeigt nach oben. "
+                          "Der RSI – ein Maß für die Schwungkraft – ist neutral, also weder überhitzt "
+                          "noch schwach. Rein charttechnische Beobachtung, keine Empfehlung."),
+                "fundamental": ("Die Bewertung ist fair und das Unternehmen wächst solide bei guter "
+                                "Gewinnmarge. Das spricht für ein stabiles Geschäft. "
+                                "Datenbasierte Einordnung, keine Empfehlung."),
+                "overall": ("Chart und Fundamentaldaten zeigen in eine ähnliche Richtung – ein "
+                            "stimmiges Bild. Chancen und Risiken bleiben bestehen. Keine Empfehlung."),
+            }
             for t in ("AAPL", "JPM", "XOM", "SAP.DE", "ALV.DE")
         ],
-        "overall": "Breit gestreute Auswahl über mehrere Branchen — sachliche Beobachtung, keine Empfehlung.",
     })
     return FakeLLM({
         "score_trends": scores, "generate_script": script, "stock_analysis": stock_analysis,

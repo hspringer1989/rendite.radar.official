@@ -22,9 +22,11 @@ from src.models import Candidate
 from src.stocks.analyzer import build_candidates
 from src.stocks.market_data import MarketData, get_earnings_calendar, get_market_data
 from src.stocks.story_cards import (
-    render_candidate_card,
     render_candidates_overview_card,
+    render_chart_card,
     render_earnings_card,
+    render_fundamental_card,
+    render_overall_card,
 )
 from src.storage.database import StoryRow, session_scope
 
@@ -40,10 +42,11 @@ def _stamp() -> str:
 
 
 def _persist(kind: str, image_path: str, caption: str, trade_date: str,
-             ticker: str = "", market: str = "", analysis: dict | None = None) -> int:
+             ticker: str = "", market: str = "", part: str = "",
+             analysis: dict | None = None) -> int:
     with session_scope() as session:
         row = StoryRow(
-            kind=kind, ticker=ticker, market=market, image_path=image_path,
+            kind=kind, part=part, ticker=ticker, market=market, image_path=image_path,
             caption=caption, trade_date=trade_date, status="pending_review",
             analysis_json=json.dumps(analysis, ensure_ascii=False) if analysis else "",
         )
@@ -87,20 +90,60 @@ def build_daily_stories(
     story_ids.append(_persist("candidates", o_path, o_caption, trade_date,
                               analysis={"tickers": [c.metrics.ticker for c in candidates]}))
 
-    # 3) One card per candidate (posted later at its market's trading hours)
+    # 3) Three cards per candidate (Charttechnik → Fundamental → Gesamtbild),
+    #    posted as a group later at the market's trading hours.
     for c in candidates:
-        story_ids.append(_persist_candidate(c, out_dir, trade_date))
+        story_ids.extend(_persist_candidate_cards(c, out_dir, trade_date))
 
     logger.info(f"{len(story_ids)} Story-Cards erstellt (pending_review)")
     return story_ids
 
 
-def _persist_candidate(c: Candidate, out_dir: Path, trade_date: str) -> int:
+def _persist_candidate_cards(c: Candidate, out_dir: Path, trade_date: str) -> list[int]:
+    """Render + persist the 3 cards (chart, fundamental, overall) for one candidate."""
     m = c.metrics
-    path = render_candidate_card(c, str(out_dir / f"cand_{m.ticker}_{_stamp()}.jpg"))
-    caption = (f"{m.ticker} · {m.sector} — was Chart & Fundamentaldaten zeigen\n\n{_DISCLAIMER}")
-    return _persist("candidate", path, caption, trade_date,
-                    ticker=m.ticker, market=m.market, analysis=asdict(c))
+    stamp = _stamp()
+    parts = [
+        ("chart", render_chart_card, "Charttechnik"),
+        ("fundamental", render_fundamental_card, "Fundamental"),
+        ("overall", render_overall_card, "Gesamtbild"),
+    ]
+    ids: list[int] = []
+    for part, render, label in parts:
+        path = render(c, str(out_dir / f"cand_{m.ticker}_{part}_{stamp}.jpg"))
+        caption = f"{m.ticker} · {m.sector} — {label}\n\n{_DISCLAIMER}"
+        ids.append(_persist("candidate", path, caption, trade_date,
+                            ticker=m.ticker, market=m.market, part=part,
+                            analysis=asdict(c) if part == "overall" else None))
+    return ids
+
+
+async def _publish_one(story_id: int) -> int | None:
+    """Publish a single StoryRow by id; record failure instead of raising."""
+    from src.publish.instagram import publish_story
+
+    with session_scope() as session:
+        story = session.get(StoryRow, story_id)
+        if story is None:
+            return None
+        image_path, kind, market = story.image_path, story.kind, story.market
+    try:
+        media_id = await publish_story(image_path)
+    except Exception as exc:  # noqa: BLE001 — record the failure, keep the loop alive
+        logger.error(f"Story #{story_id} posten fehlgeschlagen: {exc}")
+        with session_scope() as session:
+            row = session.get(StoryRow, story_id)
+            row.status = "failed"
+            row.error = str(exc)[:2000]
+        return None
+
+    with session_scope() as session:
+        row = session.get(StoryRow, story_id)
+        row.status = "published"
+        row.ig_media_id = media_id
+        row.published_at = datetime.now(_tz.utc).isoformat()
+    logger.info(f"Story #{story_id} ({kind}/{market or '—'}) veröffentlicht")
+    return story_id
 
 
 async def publish_next_story(
@@ -108,47 +151,61 @@ async def publish_next_story(
     market: str | None = None,
     trade_date: str | None = None,
 ) -> int | None:
-    """Publish the oldest approved story matching the filters (kind / market),
-    restricted to `trade_date` (defaults to today) so a leftover approved-but-unposted
-    card from a previous day is never posted stale. Returns its id, or None if nothing
-    matches. Failures are recorded, not raised."""
-    from src.publish.instagram import publish_story
-
+    """Publish the oldest approved single story (earnings / overview) for `trade_date`
+    (defaults to today) — so a leftover from a previous day is never posted stale."""
     trade_date = trade_date or _today_local().strftime("%Y-%m-%d")
     with session_scope() as session:
-        query = select(StoryRow).where(
+        query = select(StoryRow.id).where(
             StoryRow.status == "approved", StoryRow.trade_date == trade_date
         )
         if kinds:
             query = query.where(StoryRow.kind.in_(kinds))
         if market:
             query = query.where(StoryRow.market == market)
-        story = session.execute(query.order_by(StoryRow.id)).scalars().first()
-    if story is None:
-        return None
+        sid = session.execute(query.order_by(StoryRow.id)).scalars().first()
+    return await _publish_one(sid) if sid is not None else None
 
-    try:
-        media_id = await publish_story(story.image_path)
-    except Exception as exc:  # noqa: BLE001 — record the failure, keep the loop alive
-        logger.error(f"Story #{story.id} posten fehlgeschlagen: {exc}")
-        with session_scope() as session:
-            row = session.get(StoryRow, story.id)
-            row.status = "failed"
-            row.error = str(exc)[:2000]
-        return None
 
+_PART_ORDER = {"chart": 0, "fundamental": 1, "overall": 2}
+
+
+async def publish_next_candidate_group(
+    market: str | None = None, trade_date: str | None = None
+) -> list[int]:
+    """Publish all approved cards of the NEXT candidate ticker (chart → fundamental →
+    overall) for today+market as a story sequence. Returns the posted ids."""
+    trade_date = trade_date or _today_local().strftime("%Y-%m-%d")
     with session_scope() as session:
-        row = session.get(StoryRow, story.id)
-        row.status = "published"
-        row.ig_media_id = media_id
-        row.published_at = datetime.now(_tz.utc).isoformat()
-    logger.info(f"Story #{story.id} ({story.kind}/{story.market or '—'}) veröffentlicht")
-    return story.id
+        query = select(StoryRow).where(
+            StoryRow.status == "approved", StoryRow.trade_date == trade_date,
+            StoryRow.kind == "candidate",
+        )
+        if market:
+            query = query.where(StoryRow.market == market)
+        rows = [(r.id, r.ticker, r.part)
+                for r in session.execute(query.order_by(StoryRow.id)).scalars().all()]
+    if not rows:
+        return []
+
+    ticker = rows[0][1]
+    group = sorted((r for r in rows if r[1] == ticker), key=lambda r: _PART_ORDER.get(r[2], 9))
+    posted: list[int] = []
+    for sid, _t, _p in group:
+        pid = await _publish_one(sid)
+        if pid is not None:
+            posted.append(pid)
+    return posted
 
 
 async def send_stories_for_review(story_ids: list[int]) -> None:
-    """Push the freshly rendered story cards to the Telegram review queue."""
-    from src.review.telegram_bot import review_configured, send_photo_for_review
+    """Push the freshly rendered story cards to the Telegram review queue. For a
+    candidate, the chart+fundamental frames are sent as context (no buttons); the
+    overall frame carries the ✅/❌ that approves the whole ticker group."""
+    from src.review.telegram_bot import (
+        review_configured,
+        send_photo_for_review,
+        send_photo_plain,
+    )
 
     if not review_configured():
         logger.info("Telegram nicht konfiguriert — Stories bleiben in der DB (pending_review)")
@@ -156,5 +213,11 @@ async def send_stories_for_review(story_ids: list[int]) -> None:
     for sid in story_ids:
         with session_scope() as session:
             story = session.get(StoryRow, sid)
-        if story:
-            await send_photo_for_review(sid, story.image_path, story.caption)
+            data = (story.kind, story.part, story.image_path, story.caption) if story else None
+        if data is None:
+            continue
+        kind, part, image_path, caption = data
+        if kind == "candidate" and part in ("chart", "fundamental"):
+            await send_photo_plain(image_path, caption)
+        else:
+            await send_photo_for_review(sid, image_path, caption)

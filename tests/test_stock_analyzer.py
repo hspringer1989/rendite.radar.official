@@ -1,4 +1,4 @@
-"""Candidate selection + educational analysis text (FakeMarketData + FakeLLM)."""
+"""Candidate selection + educational analysis texts (FakeMarketData + FakeLLM)."""
 import json
 
 from src.content.llm import FakeLLM
@@ -11,10 +11,12 @@ _UNIVERSE = ["AAPL", "JPM", "XOM", "SAP.DE", "ALV.DE"]
 def _fake_llm() -> FakeLLM:
     payload = json.dumps({
         "candidates": [
-            {"ticker": t, "analysis": f"Edukative Einordnung zu {t}."}
+            {"ticker": t,
+             "chart": f"Der Chart von {t} zeigt einen ruhigen Aufwärtstrend.",
+             "fundamental": f"Fundamental wirkt {t} solide bewertet.",
+             "overall": f"Gesamtbild {t}: Chart und Fundamental passen zusammen."}
             for t in _UNIVERSE
         ],
-        "overall": "Sachliche Gesamteinordnung der Auswahl.",
     })
     return FakeLLM({"stock_analysis": payload})
 
@@ -22,28 +24,32 @@ def _fake_llm() -> FakeLLM:
 def test_select_candidates_diversifies_sectors():
     picked = select_candidates(FakeMarketData(), _UNIVERSE, count=3)
     assert len(picked) == 3
-    sectors = [m.sector for m in picked]
-    assert len(set(sectors)) == 3  # distinct sectors
+    assert len({m.sector for m in picked}) == 3  # distinct sectors
 
 
-def test_build_candidates_has_levels_and_text():
+def test_build_candidates_has_levels_and_three_texts():
     cands = build_candidates(FakeMarketData(), _UNIVERSE, _fake_llm(), count=3)
     assert len(cands) == 3
     for c in cands:
         assert c.stop_loss < c.entry < c.take_profit
-        assert c.analysis  # some educational text present
+        assert c.chart_text and c.fundamental_text and c.overall_text
+        assert c.metrics.history_closes  # closes stored for the chart
 
 
 def test_analysis_sanitises_buy_imperative():
     llm = FakeLLM({"stock_analysis": json.dumps({
-        "candidates": [{"ticker": "AAPL", "analysis": "AAPL jetzt kaufen, klares Signal."}],
-        "overall": "",
+        "candidates": [{"ticker": "AAPL",
+                        "chart": "AAPL jetzt kaufen, klares Signal.",
+                        "fundamental": "solide", "overall": "stimmig"}],
     })})
     cands = build_candidates(FakeMarketData(), ["AAPL"], llm, count=1)
-    assert "kaufen" not in cands[0].analysis.lower()
+    assert "kaufen" not in cands[0].chart_text.lower()
 
 
-def test_fallback_text_when_ticker_missing_in_response():
-    llm = FakeLLM({"stock_analysis": json.dumps({"candidates": [], "overall": ""})})
+def test_fallback_texts_when_ticker_missing_in_response():
+    llm = FakeLLM({"stock_analysis": json.dumps({"candidates": []})})
     cands = build_candidates(FakeMarketData(), ["AAPL"], llm, count=1)
-    assert "Charttechnik" in cands[0].analysis  # rule-based fallback kicked in
+    # rule-based fallback kicked in for all three texts
+    assert "50-Tage-Linie" in cands[0].chart_text
+    assert "KGV" in cands[0].fundamental_text
+    assert cands[0].overall_text

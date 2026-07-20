@@ -13,7 +13,7 @@ pytest.importorskip("PIL", reason="Pillow not installed — card rendering unava
 
 
 def _fake_llm() -> FakeLLM:
-    return FakeLLM({"stock_analysis": json.dumps({"candidates": [], "overall": ""})})
+    return FakeLLM({"stock_analysis": json.dumps({"candidates": []})})
 
 
 def _configure(monkeypatch):
@@ -21,25 +21,30 @@ def _configure(monkeypatch):
     monkeypatch.setattr(config, "STOCK_CANDIDATES_COUNT", 3)
 
 
-def test_build_daily_stories_creates_cards(monkeypatch):
+def _build(monkeypatch):
     _configure(monkeypatch)
     from src.stocks.pipeline import build_daily_stories
 
-    ids = build_daily_stories(FakeMarketData(), _fake_llm())
-    # earnings + overview + 3 candidates
-    assert len(ids) == 5
+    return build_daily_stories(FakeMarketData(), _fake_llm())
+
+
+def test_build_creates_earnings_overview_and_three_cards_per_candidate(monkeypatch):
+    ids = _build(monkeypatch)
+    # earnings(1) + overview(1) + 3 candidates × 3 cards = 11
+    assert len(ids) == 11
     with session_scope() as session:
-        kinds = [session.get(StoryRow, i).kind for i in ids]
-    assert kinds[0] == "earnings"
-    assert kinds[1] == "candidates"
-    assert kinds[2:] == ["candidate", "candidate", "candidate"]
+        rows = [session.get(StoryRow, i) for i in ids]
+    assert rows[0].kind == "earnings"
+    assert rows[1].kind == "candidates"
+    cand = rows[2:]
+    assert all(r.kind == "candidate" for r in cand)
+    # each candidate contributes exactly the three parts
+    parts = sorted(r.part for r in cand[:3])
+    assert parts == ["chart", "fundamental", "overall"]
 
 
 def test_story_cards_are_pending_review_and_written(monkeypatch):
-    _configure(monkeypatch)
-    from src.stocks.pipeline import build_daily_stories
-
-    ids = build_daily_stories(FakeMarketData(), _fake_llm())
+    ids = _build(monkeypatch)
     with session_scope() as session:
         for i in ids:
             row = session.get(StoryRow, i)
@@ -47,23 +52,28 @@ def test_story_cards_are_pending_review_and_written(monkeypatch):
             assert row.image_path.endswith(".jpg")
 
 
-def test_story_decision_approve_and_reject(monkeypatch):
-    _configure(monkeypatch)
-    from src.stocks.pipeline import build_daily_stories
+def test_candidate_decision_cascades_to_whole_ticker(monkeypatch):
+    from sqlalchemy import select
 
-    ids = build_daily_stories(FakeMarketData(), _fake_llm())
-    assert apply_story_decision(ids[0], "approve")
-    assert apply_story_decision(ids[1], "reject")
+    ids = _build(monkeypatch)
     with session_scope() as session:
-        assert session.get(StoryRow, ids[0]).status == "approved"
-        assert session.get(StoryRow, ids[1]).status == "rejected"
+        first = session.execute(
+            select(StoryRow).where(StoryRow.kind == "candidate").order_by(StoryRow.id)
+        ).scalars().first()
+        ticker = first.ticker
+        group = [r.id for r in session.execute(
+            select(StoryRow).where(StoryRow.ticker == ticker)
+        ).scalars().all()]
+    assert len(group) == 3  # chart + fundamental + overall
+    # approving any one card approves all three of that ticker
+    assert apply_story_decision(group[0], "approve")
+    with session_scope() as session:
+        for gid in group:
+            assert session.get(StoryRow, gid).status == "approved"
 
 
-def test_story_decision_double_is_refused(monkeypatch):
-    _configure(monkeypatch)
-    from src.stocks.pipeline import build_daily_stories
-
-    ids = build_daily_stories(FakeMarketData(), _fake_llm())
-    apply_story_decision(ids[0], "approve")
+def test_earnings_decision_is_single(monkeypatch):
+    ids = _build(monkeypatch)
+    assert apply_story_decision(ids[0], "approve")   # earnings
     ack = apply_story_decision(ids[0], "reject")
     assert "bereits" in ack

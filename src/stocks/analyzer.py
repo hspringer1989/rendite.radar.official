@@ -20,32 +20,41 @@ from src.stocks.market_data import MarketData
 
 _DISCLAIMER = "⚠️ Keine Anlageberatung — nur Bildung & Unterhaltung. Kein Kauf-/Verkaufsaufruf."
 
-_SYSTEM_PROMPT = """Du bist ein nüchterner Finanz-Analyst und erklärst für ein deutsches \
-Finanz-Bildungsprofil, was Charttechnik und Fundamentaldaten zu einer Aktie AKTUELL zeigen.
+_SYSTEM_PROMPT = """Du erklärst für ein deutsches Instagram-Finanz-Bildungsprofil in EINFACHER, \
+leicht verständlicher Sprache, was Charttechnik und Fundamentaldaten zu einer Aktie AKTUELL zeigen.
 
-STRIKTE COMPLIANCE (BaFin-Finfluencer-Regeln, keine Ausnahmen):
-- KEINE Anlageberatung, KEINE Kaufempfehlung. Schreibe beobachtend/erklärend \
-("Die Charttechnik zeigt…", "Fundamental fällt auf…"), NIEMALS direktiv ("Kaufen", "Jetzt einsteigen").
-- Stop-Loss / Take-Profit sind als CHARTTECHNISCHE Risiko- bzw. Potenzialmarken zu erklären \
-("aus Risikosicht würde eine Marke bei X liegen"), nicht als Handlungsanweisung.
-- Keine Rendite-Versprechen, keine Sicherheit suggerieren. Chancen UND Risiken nennen.
-- Sachlich, konkret, mit den gelieferten Zahlen. Deutsch, pro Aktie 2–3 kurze Sätze.
+STIL (wichtig, Instagram-tauglich):
+- Einfaches Deutsch, kurze Sätze, alltagsnah. Fachbegriffe (RSI, KGV, ATR) in einem Halbsatz erklären.
+- Pro Textfeld 2–4 Sätze: erst der Kernpunkt, dann eine knappe Begründung mit den Zahlen. \
+Leicht verdaulich, nicht überladen, gern etwas anschaulich.
+
+STRIKTE COMPLIANCE (BaFin/MAR, keine Ausnahmen):
+- KEINE Anlageberatung, KEINE Kauf-/Verkaufsempfehlung. Schreibe beobachtend ("Der Chart zeigt…", \
+"Fundamental fällt auf…"), NIEMALS direktiv ("Kaufen", "Jetzt einsteigen", "Sollte man holen").
+- Die Ampel (bullisch/neutral/bärisch bzw. stark/neutral/schwach) beschreibt, was die DATEN zeigen, \
+nicht was jemand tun soll.
+- Stop-/Ziel-Marken sind charttechnische Risiko-/Potenzialmarken, keine Handlungsanweisung.
+- Chancen UND Risiken benennen, keine Rendite-Versprechen, keine Sicherheit suggerieren.
 
 Antworte AUSSCHLIESSLICH mit gültigem JSON, kein Fließtext, keine Markdown-Umrandung."""
 
-_USER_TEMPLATE = """Erkläre edukativ die folgenden {n} Watchlist-Titel (unterschiedliche Branchen), \
-je auf Basis von Charttechnik UND Fundamentaldaten. Gib zusätzlich eine sachliche \
-Gesamteinordnung ("overall").
+_USER_TEMPLATE = """Erkläre edukativ die folgenden {n} Watchlist-Titel (unterschiedliche Branchen). \
+Gib je Titel DREI getrennte, einfach verständliche Texte: zur Charttechnik, zu den Fundamentaldaten \
+und ein Gesamtbild. Das Gesamtbild fasst zusammen, ob Chart und Fundamental in dieselbe Richtung zeigen.
 
-Titel-Daten:
+Titel-Daten (Ampel-Level ist vorgegeben, richte den Ton daran aus):
 {payload}
 
 Gib genau diese JSON-Struktur zurück:
 {{
   "candidates": [
-    {{"ticker": "TICK", "analysis": "2-3 Sätze edukative Einordnung (Charttechnik + Fundamental + Risiko)"}}
-  ],
-  "overall": "1-2 Sätze sachliche Gesamteinordnung der Auswahl"
+    {{
+      "ticker": "TICK",
+      "chart": "2-4 einfache Sätze: was der Kursverlauf/Trend/RSI zeigt, inkl. der Risiko-/Zielmarke",
+      "fundamental": "2-4 einfache Sätze: Bewertung (KGV), Wachstum, Marge – alltagsnah erklärt",
+      "overall": "2-3 Sätze Gesamtbild: passen Chart und Fundamental zusammen? Chance und Risiko"
+    }}
+  ]
 }}"""
 
 # Blatant imperatives that must never survive into a public caption.
@@ -87,6 +96,7 @@ def analyze_ticker(md: MarketData, ticker: str) -> StockMetrics | None:
         pe=fund.get("pe"),
         revenue_growth=fund.get("revenue_growth"),
         profit_margin=fund.get("profit_margin"),
+        history_closes=[round(c, 2) for c in closes[-90:]],
     )
 
 
@@ -131,14 +141,25 @@ def _sanitise(text: str) -> str:
     return cleaned
 
 
-def _fallback_text(m: StockMetrics) -> str:
-    """Rule-based educational text used when Claude is unavailable / over budget."""
+def _fallback_texts(m: StockMetrics) -> tuple[str, str, str]:
+    """Rule-based educational texts (chart, fundamental, overall) used when Claude is
+    unavailable / over budget."""
     trend = "über" if m.price > m.sma50 else "unter"
-    return (
-        f"Charttechnik: Kurs {trend} der 50-Tage-Linie, RSI bei {m.rsi:.0f}. "
-        f"Fundamental: Tech-Score {m.tech_score:.2f}, Fundamental-Score {m.fund_score:.2f}. "
-        f"Rein datenbasierte Einordnung, keine Empfehlung."
+    chart = (
+        f"Der Kurs liegt aktuell {trend} der 50-Tage-Linie. Der RSI – ein Maß für die "
+        f"Schwungkraft – steht bei {m.rsi:.0f}. Rein charttechnische Beobachtung, keine Empfehlung."
     )
+    pe = f"rund {m.pe:.0f}" if m.pe else "nicht verfügbar"
+    growth = f"{m.revenue_growth * 100:.0f}%" if m.revenue_growth is not None else "n/a"
+    fund = (
+        f"Bewertung: KGV {pe} (wie teuer die Aktie je Euro Gewinn ist), Umsatzwachstum {growth}. "
+        f"Datenbasierte Einordnung, keine Empfehlung."
+    )
+    overall = (
+        "Chart und Fundamentaldaten ergeben zusammen das Gesamtbild oben – "
+        "eine beobachtende Einordnung, keine Kauf-/Verkaufsempfehlung."
+    )
+    return chart, fund, overall
 
 
 def build_candidates(
@@ -162,12 +183,17 @@ def build_candidates(
     return candidates
 
 
+def _apply_fallback(candidates: list[Candidate]) -> None:
+    for c in candidates:
+        c.chart_text, c.fundamental_text, c.overall_text = _fallback_texts(c.metrics)
+
+
 def _attach_analysis(candidates: list[Candidate], llm: LLMProvider) -> None:
-    """Fill Candidate.analysis via one budget-gated Claude call; rule-based fallback."""
+    """Fill the three educational texts per candidate via one budget-gated Claude call;
+    rule-based fallback on budget/LLM failure."""
     if claude_budget_exceeded():
         logger.warning("Claude-Budget erschöpft — nutze regelbasierte Analysetexte")
-        for c in candidates:
-            c.analysis = _fallback_text(c.metrics)
+        _apply_fallback(candidates)
         return
 
     payload = json.dumps([
@@ -175,10 +201,12 @@ def _attach_analysis(candidates: list[Candidate], llm: LLMProvider) -> None:
             "ticker": c.metrics.ticker, "name": c.metrics.name, "sector": c.metrics.sector,
             "price": c.metrics.price, "currency": c.metrics.currency,
             "sma20": c.metrics.sma20, "sma50": c.metrics.sma50, "rsi": c.metrics.rsi,
-            "tech_score": c.metrics.tech_score, "fund_score": c.metrics.fund_score,
             "pe": c.metrics.pe, "revenue_growth": c.metrics.revenue_growth,
             "profit_margin": c.metrics.profit_margin,
             "risk_mark": c.stop_loss, "potential_mark": c.take_profit,
+            "chart_ampel": ind.tendency(c.metrics.tech_score, "chart")[1],
+            "fundamental_ampel": ind.tendency(c.metrics.fund_score, "fund")[1],
+            "gesamt_ampel": ind.tendency(c.metrics.blended, "overall")[1],
         }
         for c in candidates
     ], ensure_ascii=False)
@@ -188,28 +216,27 @@ def _attach_analysis(candidates: list[Candidate], llm: LLMProvider) -> None:
             system=_SYSTEM_PROMPT,
             user=_USER_TEMPLATE.format(n=len(candidates), payload=payload),
             model=config.CLAUDE_MODEL,
-            max_tokens=1200,
+            max_tokens=2200,
             purpose="stock_analysis",
         )
     except Exception as exc:  # noqa: BLE001 — never crash the daily run on the LLM
         logger.warning(f"Claude-Analyse fehlgeschlagen ({exc}) — regelbasierte Texte")
-        for c in candidates:
-            c.analysis = _fallback_text(c.metrics)
+        _apply_fallback(candidates)
         return
 
     data = parse_json_response(raw)
-    texts = {}
-    overall = ""
+    by_ticker: dict[str, dict] = {}
     if isinstance(data, dict):
         for entry in data.get("candidates", []):
             if isinstance(entry, dict) and entry.get("ticker"):
-                texts[str(entry["ticker"]).upper()] = str(entry.get("analysis", "")).strip()
-        overall = str(data.get("overall", "")).strip()
+                by_ticker[str(entry["ticker"]).upper()] = entry
 
     for c in candidates:
-        text = texts.get(c.metrics.ticker.upper())
-        c.analysis = _sanitise(text) if text else _fallback_text(c.metrics)
-
-    if overall:
-        # Stash the overall take on the first candidate for the overview card.
-        candidates[0].analysis = f"{candidates[0].analysis}\n\nGesamtbild: {_sanitise(overall)}"
+        entry = by_ticker.get(c.metrics.ticker.upper())
+        fb_chart, fb_fund, fb_overall = _fallback_texts(c.metrics)
+        if entry:
+            c.chart_text = _sanitise(str(entry.get("chart", "")).strip()) or fb_chart
+            c.fundamental_text = _sanitise(str(entry.get("fundamental", "")).strip()) or fb_fund
+            c.overall_text = _sanitise(str(entry.get("overall", "")).strip()) or fb_overall
+        else:
+            c.chart_text, c.fundamental_text, c.overall_text = fb_chart, fb_fund, fb_overall

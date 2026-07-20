@@ -65,6 +65,7 @@ class StoryRow(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     kind: Mapped[str] = mapped_column(String(16), index=True)
+    part: Mapped[str] = mapped_column(String(12), default="", index=True)  # candidate: chart|fundamental|overall
     ticker: Mapped[str] = mapped_column(String(16), default="")  # only for kind='candidate'
     market: Mapped[str] = mapped_column(String(4), default="")   # US | EU
     image_path: Mapped[str] = mapped_column(Text, default="")
@@ -108,11 +109,20 @@ _engine = None
 _session_factory = None
 
 
+def _migrate(engine) -> None:
+    """Lightweight additive migrations for SQLite (create_all never ALTERs)."""
+    with engine.begin() as conn:
+        cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(stories)").fetchall()}
+        if cols and "part" not in cols:
+            conn.exec_driver_sql("ALTER TABLE stories ADD COLUMN part VARCHAR(12) DEFAULT ''")
+
+
 def init_db(db_path: str | None = None) -> None:
     global _engine, _session_factory
     path = db_path or str(config.DB_PATH)
     _engine = create_engine(f"sqlite:///{path}")
     Base.metadata.create_all(_engine)
+    _migrate(_engine)
     _session_factory = sessionmaker(bind=_engine, expire_on_commit=False)
 
 

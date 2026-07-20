@@ -4,6 +4,7 @@ status='approved'. (Same notification channel pattern as trading-bot.)"""
 from pathlib import Path
 
 from loguru import logger
+from sqlalchemy import select
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CallbackQueryHandler, ContextTypes
 
@@ -76,6 +77,21 @@ async def send_photo_for_review(story_id: int, image_path: str, caption: str) ->
     logger.info(f"Story #{story_id} zur Freigabe an Telegram gesendet")
 
 
+async def send_photo_plain(image_path: str, caption: str) -> None:
+    """Send a story card as context (no review buttons) — used for the chart and
+    fundamental frames of a candidate; the overall frame carries the approval."""
+    bot = Bot(token=config.TELEGRAM_BOT_TOKEN)
+    async with bot:
+        with open(image_path, "rb") as photo:
+            await bot.send_photo(
+                chat_id=config.TELEGRAM_CHAT_ID,
+                photo=photo,
+                caption=caption[:1024],
+                read_timeout=120,
+                write_timeout=300,
+            )
+
+
 async def send_text(text: str) -> None:
     bot = Bot(token=config.TELEGRAM_BOT_TOKEN)
     async with bot:
@@ -99,7 +115,9 @@ def apply_decision(reel_id: int, action: str) -> str | None:
 
 
 def apply_story_decision(story_id: int, action: str) -> str | None:
-    """Pure DB part of a story review decision (unit-testable without Telegram)."""
+    """Pure DB part of a story review decision (unit-testable without Telegram).
+    For a candidate the decision cascades to ALL cards of that ticker+date (the 3
+    frames are approved/rejected together via the button on the overall frame)."""
     if action not in _STORY_DECISIONS:
         return None
     status, ack = _STORY_DECISIONS[action]
@@ -109,8 +127,22 @@ def apply_story_decision(story_id: int, action: str) -> str | None:
             return None
         if story.status != "pending_review":
             return f"Story #{story_id} ist bereits '{story.status}'"
-        story.status = status
-    logger.info(f"Review-Entscheidung für Story #{story_id}: {status}")
+        if story.kind == "candidate" and story.ticker:
+            rows = session.execute(
+                select(StoryRow).where(
+                    StoryRow.kind == "candidate",
+                    StoryRow.ticker == story.ticker,
+                    StoryRow.trade_date == story.trade_date,
+                    StoryRow.status == "pending_review",
+                )
+            ).scalars().all()
+            for row in rows:
+                row.status = status
+            count = len(rows)
+        else:
+            story.status = status
+            count = 1
+    logger.info(f"Review-Entscheidung für Story #{story_id}: {status} ({count} Card(s))")
     return ack
 
 

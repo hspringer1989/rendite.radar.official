@@ -97,7 +97,10 @@ one budget-gated Claude call        analyzer._attach_analysis  (purpose="stock_a
   educational text per candidate + overall take; rule-based fallback if over budget
         ▼
 story cards (Pillow)                src/stocks/story_cards.py
-  earnings card + watchlist-overview card + one card per candidate
+  earnings card + watchlist-overview card + THREE cards per candidate
+  (Charttechnik incl. drawn price chart / Fundamental / Gesamtbild), each with a
+  traffic-light signal (green/amber/red = bullish/neutral/bearish, observational,
+  NOT buy/sell). StoryRow.part = chart|fundamental|overall.
         ▼
 StoryRow(pending_review)            src/storage/database.py  (table `stories`)
         ▼
@@ -115,7 +118,10 @@ publish_story (media_type=STORIES)  src/publish/instagram.py
   review), then posts approved cards: earnings + watchlist-overview at
   `STORY_POST_EARNINGS_SLOT`, candidate cards spread over `STORY_SLOTS_EU` /
   `STORY_SLOTS_US` (local time; one story per slot, matched to the card's `market`).
-  `publish_next_story(kinds, market)` picks the oldest approved match.
+  `publish_next_story` posts single cards (earnings/overview); `publish_next_candidate_group`
+  posts a whole ticker's 3 cards in sequence. Approving one candidate card in Telegram
+  cascades to all 3 of that ticker (the ✅/❌ sits on the overall frame; chart+fundamental
+  are sent as context via `send_photo_plain`).
 - Story cards bake ALL text into the image (Graph API stories have no
   stickers/links). No emoji in cards — the bundled fonts render them as tofu;
   emoji live only in Telegram captions. Story posting needs `PUBLIC_MEDIA_*`

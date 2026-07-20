@@ -178,6 +178,7 @@ async def _run_loop() -> None:
     from src.review.telegram_bot import build_application, review_configured, send_text
     from src.stocks.pipeline import (
         build_daily_stories,
+        publish_next_candidate_group,
         publish_next_story,
         send_stories_for_review,
     )
@@ -251,9 +252,11 @@ async def _run_loop() -> None:
                     key = (slot_key[0], f"story_{market}_{hhmm}")
                     if hhmm in slots and key not in done_slots:
                         done_slots.add(key)
-                        sid = await publish_next_story(kinds=["candidate"], market=market)
-                        if sid and review_configured():
-                            await send_text(f"📤 Story #{sid} ({market}) wurde gepostet.")
+                        posted = await publish_next_candidate_group(market=market)
+                        if posted and review_configured():
+                            await send_text(
+                                f"📤 Kandidaten-Story ({market}, {len(posted)} Cards) gepostet."
+                            )
 
             # 5) daily insights
             if now.strftime("%H:%M") == _INSIGHTS_SLOT and (slot_key[0], "insights") not in done_slots:

@@ -135,6 +135,38 @@ def fundamental_score(
     return round(sum(parts) / len(parts), 4)
 
 
+def sma_series(values: list[float], window: int) -> list[float | None]:
+    """Rolling SMA aligned to `values` (None until enough data) — for chart drawing."""
+    out: list[float | None] = []
+    for i in range(len(values)):
+        if i + 1 < window:
+            out.append(None)
+        else:
+            out.append(sum(values[i + 1 - window:i + 1]) / window)
+    return out
+
+
+# Traffic-light tendency: an OBSERVATIONAL read of the data, not a buy/sell call.
+# pos ≥ 0.60 (green), neu 0.40–0.60 (yellow), neg < 0.40 (red).
+_TENDENCY_LABELS = {
+    "chart": {"pos": "Bullisch", "neu": "Neutral", "neg": "Bärisch"},
+    "fund": {"pos": "Stark", "neu": "Neutral", "neg": "Schwach"},
+    "overall": {"pos": "Eher positiv", "neu": "Gemischt", "neg": "Eher schwach"},
+}
+
+
+def tendency(score: float, kind: str = "chart") -> tuple[str, str]:
+    """Map a 0–1 score to (level, label) for the traffic-light badge.
+    level ∈ {'pos','neu','neg'}; label depends on the dimension (chart/fund/overall)."""
+    if score >= 0.60:
+        level = "pos"
+    elif score >= 0.40:
+        level = "neu"
+    else:
+        level = "neg"
+    return level, _TENDENCY_LABELS.get(kind, _TENDENCY_LABELS["chart"])[level]
+
+
 def risk_levels(
     entry: float,
     atr_value: float | None,

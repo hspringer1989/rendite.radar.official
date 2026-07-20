@@ -97,6 +97,7 @@ class StockMetrics:
     pe: float | None = None
     revenue_growth: float | None = None   # fraction, e.g. 0.18 = +18 %
     profit_margin: float | None = None     # fraction
+    history_closes: list[float] = field(default_factory=list)  # recent closes for the chart
 
     @property
     def blended(self) -> float:
@@ -115,4 +116,7 @@ class Candidate:
     entry: float             # reference level (last close)
     stop_loss: float         # chart/ATR-derived risk mark
     take_profit: float       # chart/ATR-derived potential mark
-    analysis: str = ""       # KI-generated educational analysis text
+    # Educational texts per story card (simple, Instagram-friendly, slightly detailed):
+    chart_text: str = ""         # what the chart shows
+    fundamental_text: str = ""   # what the fundamentals show
+    overall_text: str = ""       # the combined picture
