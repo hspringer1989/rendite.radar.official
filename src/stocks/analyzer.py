@@ -55,7 +55,7 @@ Gib genau diese JSON-Struktur zurück:
   "candidates": [
     {{
       "ticker": "TICK",
-      "chart": "2-3 dichte Sätze mit Zahlen: Trendstruktur (Kurs vs. SMA20/SMA50), RSI-Lage, Abstand zu Stop/Ziel",
+      "chart": "GENAU 2 dichte Sätze mit Zahlen: Trendstruktur (Kurs vs. SMA20/SMA50) und RSI-Lage (Stop/Ziel stehen separat)",
       "fundamental": "2-3 dichte Sätze mit Zahlen: KGV (teuer/günstig), Wachstum, Marge — was das konkret heißt",
       "overall": "1-2 Sätze: passen Chart und Fundamental zusammen? Wichtigste Chance und wichtigstes Risiko"
     }}
@@ -163,12 +163,9 @@ def _fallback_texts(c: Candidate) -> tuple[str, str, str]:
         rsi_note = "im gesunden Bereich"
     else:
         rsi_note = "neutral"
-    down = (c.entry - c.stop_loss) / c.entry * 100 if c.entry else 0
-    up = (c.take_profit - c.entry) / c.entry * 100 if c.entry else 0
     chart = (
         f"Der Kurs steht {pos20} der 20- und {pos50} der 50-Tage-Linie – {trend}. "
-        f"Der RSI (Schwungkraft-Maß) liegt bei {m.rsi:.0f}, also {rsi_note}. "
-        f"Bis zur Risikomarke sind es ca. {down:.0f}%, bis zur Zielmarke ca. {up:.0f}%. Beobachtung, keine Empfehlung."
+        f"Der RSI (Schwungkraft-Maß) liegt bei {m.rsi:.0f}, also {rsi_note}. Beobachtung, keine Empfehlung."
     )
 
     pe = f"{m.pe:.0f}" if m.pe else None

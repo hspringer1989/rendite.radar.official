@@ -166,20 +166,21 @@ def render_chart_card(c: Candidate, out_path: str) -> str:
     _card_header(draw, c, "1 · Charttechnik", "1/3")
 
     level, label = ind.tendency(m.tech_score, "chart")
-    _signal_badge(draw, 60, 410, level, f"Chart: {label}", big=True)
+    _signal_badge(draw, 60, 404, level, f"Chart: {label}", big=True)
 
-    _draw_chart(draw, (60, 500, W - 60, 1030),
+    _draw_chart(draw, (60, 480, W - 60, 930),
                 m.history_closes, c.stop_loss, c.take_profit, c.entry, m.currency)
 
-    y = _wrap(draw, c.chart_text, _font(34), 60, 1070, 42, _FG, 46)
+    # analysis text flows between the chart and the fixed risk-marks box
+    _wrap(draw, c.chart_text, _font(32), 60, 968, 46, _FG, 42)
 
-    y = max(y + 24, 1360)
-    draw.rounded_rectangle((60, y, W - 60, y + 250), radius=24, fill=_CARD)
+    y = 1500  # fixed so the box always clears the footer, whatever the text length
+    draw.rounded_rectangle((60, y, W - 60, y + 232), radius=24, fill=_CARD)
     draw.text((90, y + 22), "Charttechnische Marken (keine Empfehlung)",
               font=_font(28, bold=True), fill=_MUTED)
-    _level_row(draw, y + 78, "Referenz (Schluss)", f"{c.entry:.2f} {m.currency}", _FG)
-    _level_row(draw, y + 132, "Risikomarke (Stop)", f"{c.stop_loss:.2f} {m.currency}", _RED)
-    _level_row(draw, y + 186, "Potenzialmarke (Ziel)", f"{c.take_profit:.2f} {m.currency}", _ACCENT)
+    _level_row(draw, y + 80, "Referenz (Schluss)", f"{c.entry:.2f} {m.currency}", _FG)
+    _level_row(draw, y + 134, "Risikomarke (Stop)", f"{c.stop_loss:.2f} {m.currency}", _RED)
+    _level_row(draw, y + 188, "Potenzialmarke (Ziel)", f"{c.take_profit:.2f} {m.currency}", _ACCENT)
     return _save(img, out_path)
 
 

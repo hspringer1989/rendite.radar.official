@@ -93,8 +93,7 @@ def builtin_fake() -> "FakeLLM":
             {
                 "ticker": t,
                 "chart": ("Der Kurs notiert über 20- und 50-Tage-Linie, die Struktur bleibt aufwärts. "
-                          "Der RSI um 55 (Schwungkraft-Maß) zeigt Luft nach oben ohne Überhitzung. "
-                          "Bis zur Risikomarke sind es rund 5%. Beobachtung, keine Empfehlung."),
+                          "Der RSI um 55 (Schwungkraft-Maß) zeigt Luft nach oben ohne Überhitzung, keine Empfehlung."),
                 "fundamental": ("Mit KGV rund 18 ist die Aktie moderat bewertet (KGV = Preis je Euro Gewinn). "
                                 "Das Umsatzplus von 10% und eine Marge von 20% stützen das Geschäft. "
                                 "Datenbasierte Einordnung, keine Empfehlung."),
