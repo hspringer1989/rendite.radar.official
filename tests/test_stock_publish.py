@@ -82,6 +82,17 @@ async def test_group_posts_one_ticker_at_a_time(monkeypatch):
     assert set(posted) == set(first)
 
 
+async def test_group_dedupes_to_one_per_part(monkeypatch):
+    _fake_publish(monkeypatch)
+    old = _candidate_group("JPM", "US")          # first (stale) set
+    new = _candidate_group("JPM", "US")          # rebuilt set, higher ids
+    posted = await publish_next_candidate_group(market="US")
+    assert len(posted) == 3                        # one chart + one fundamental + one overall
+    assert set(posted) == set(new)                 # newest per part wins
+    with session_scope() as session:              # old duplicates were not posted
+        assert all(session.get(StoryRow, i).status == "approved" for i in old)
+
+
 async def test_group_stale_day_not_posted(monkeypatch):
     _fake_publish(monkeypatch)
     _candidate_group("JPM", "US", status="approved")

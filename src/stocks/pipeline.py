@@ -100,8 +100,23 @@ def build_daily_stories(
 
 
 def _persist_candidate_cards(c: Candidate, out_dir: Path, trade_date: str) -> list[int]:
-    """Render + persist the 3 cards (chart, fundamental, overall) for one candidate."""
+    """Render + persist the 3 cards (chart, fundamental, overall) for one candidate.
+    Supersedes any earlier same-day cards for this ticker so a re-build never stacks
+    duplicate frames onto the same story."""
     m = c.metrics
+    with session_scope() as session:
+        prior = session.execute(
+            select(StoryRow).where(
+                StoryRow.kind == "candidate", StoryRow.ticker == m.ticker,
+                StoryRow.trade_date == trade_date,
+                StoryRow.status.in_(("pending_review", "approved")),
+            )
+        ).scalars().all()
+        for row in prior:
+            row.status = "superseded"
+        if prior:
+            logger.info(f"{m.ticker}: {len(prior)} ältere Card(s) verworfen (superseded)")
+
     stamp = _stamp()
     parts = [
         ("chart", render_chart_card, "Charttechnik"),
@@ -188,9 +203,14 @@ async def publish_next_candidate_group(
         return []
 
     ticker = rows[0][1]
-    group = sorted((r for r in rows if r[1] == ticker), key=lambda r: _PART_ORDER.get(r[2], 9))
+    # dedupe safety: at most ONE card per part (newest id wins), ordered chart→…→overall
+    newest: dict[str, int] = {}
+    for sid, tk, part in sorted((r for r in rows if r[1] == ticker), key=lambda r: r[0]):
+        newest[part] = sid
+    ordered = sorted(newest.items(), key=lambda kv: _PART_ORDER.get(kv[0], 9))
+
     posted: list[int] = []
-    for sid, _t, _p in group:
+    for _part, sid in ordered:
         pid = await _publish_one(sid)
         if pid is not None:
             posted.append(pid)
