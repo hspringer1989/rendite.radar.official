@@ -1,13 +1,16 @@
 """Story posting queue (publish_next_story) — publish_story is faked, no network."""
 from src.publish import instagram
-from src.stocks.pipeline import publish_next_story
+from src.stocks.pipeline import _today_local, publish_next_story
 from src.storage.database import StoryRow, session_scope
 
+_TODAY = _today_local().strftime("%Y-%m-%d")
 
-def _make_story(kind: str, market: str = "", status: str = "approved") -> int:
+
+def _make_story(kind: str, market: str = "", status: str = "approved",
+                trade_date: str = _TODAY) -> int:
     with session_scope() as session:
         row = StoryRow(kind=kind, market=market, image_path="card.jpg",
-                       status=status, trade_date="2026-07-20")
+                       status=status, trade_date=trade_date)
         session.add(row)
         session.flush()
         return row.id
@@ -48,6 +51,12 @@ async def test_oldest_first(monkeypatch):
 async def test_returns_none_when_nothing_approved(monkeypatch):
     _fake_publish(monkeypatch)
     _make_story("earnings", status="pending_review")  # not approved
+    assert await publish_next_story(kinds=["earnings"]) is None
+
+
+async def test_stale_story_from_previous_day_is_not_posted(monkeypatch):
+    _fake_publish(monkeypatch)
+    _make_story("earnings", trade_date="2000-01-01")  # approved but old
     assert await publish_next_story(kinds=["earnings"]) is None
 
 

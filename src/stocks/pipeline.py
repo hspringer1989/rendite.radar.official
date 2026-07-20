@@ -104,14 +104,21 @@ def _persist_candidate(c: Candidate, out_dir: Path, trade_date: str) -> int:
 
 
 async def publish_next_story(
-    kinds: list[str] | None = None, market: str | None = None
+    kinds: list[str] | None = None,
+    market: str | None = None,
+    trade_date: str | None = None,
 ) -> int | None:
-    """Publish the oldest approved story matching the filters (kind / market).
-    Returns its id, or None if nothing matches. Failures are recorded, not raised."""
+    """Publish the oldest approved story matching the filters (kind / market),
+    restricted to `trade_date` (defaults to today) so a leftover approved-but-unposted
+    card from a previous day is never posted stale. Returns its id, or None if nothing
+    matches. Failures are recorded, not raised."""
     from src.publish.instagram import publish_story
 
+    trade_date = trade_date or _today_local().strftime("%Y-%m-%d")
     with session_scope() as session:
-        query = select(StoryRow).where(StoryRow.status == "approved")
+        query = select(StoryRow).where(
+            StoryRow.status == "approved", StoryRow.trade_date == trade_date
+        )
         if kinds:
             query = query.where(StoryRow.kind.in_(kinds))
         if market:
