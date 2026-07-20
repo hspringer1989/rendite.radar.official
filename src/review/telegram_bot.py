@@ -8,12 +8,17 @@ from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CallbackQueryHandler, ContextTypes
 
 import config
-from src.storage.database import ReelRow, session_scope
+from src.storage.database import ReelRow, StoryRow, session_scope
 
 _DECISIONS = {
     "approve": ("approved", "✅ Freigegeben — wird zum nächsten Slot gepostet"),
     "reject": ("rejected", "❌ Verworfen"),
     "regen": ("regenerate", "🔄 Wird neu generiert"),
+}
+
+_STORY_DECISIONS = {
+    "approve": ("approved", "✅ Freigegeben — wird zur passenden Handelszeit gepostet"),
+    "reject": ("rejected", "❌ Verworfen"),
 }
 
 
@@ -26,6 +31,13 @@ def _keyboard(reel_id: int) -> InlineKeyboardMarkup:
         InlineKeyboardButton("✅ Posten", callback_data=f"approve:{reel_id}"),
         InlineKeyboardButton("🔄 Neu", callback_data=f"regen:{reel_id}"),
         InlineKeyboardButton("❌ Verwerfen", callback_data=f"reject:{reel_id}"),
+    ]])
+
+
+def _story_keyboard(story_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Posten", callback_data=f"story:approve:{story_id}"),
+        InlineKeyboardButton("❌ Verwerfen", callback_data=f"story:reject:{story_id}"),
     ]])
 
 
@@ -45,6 +57,23 @@ async def send_for_review(reel_id: int, video_path: str, caption: str) -> None:
                 write_timeout=300,
             )
     logger.info(f"Reel #{reel_id} zur Freigabe an Telegram gesendet")
+
+
+async def send_photo_for_review(story_id: int, image_path: str, caption: str) -> None:
+    """Send a rendered story card as a photo with ✅/❌ review buttons."""
+    bot = Bot(token=config.TELEGRAM_BOT_TOKEN)
+    text = f"🖼 Story #{story_id} wartet auf Freigabe\n\n{caption}"
+    async with bot:
+        with open(image_path, "rb") as photo:
+            await bot.send_photo(
+                chat_id=config.TELEGRAM_CHAT_ID,
+                photo=photo,
+                caption=text[:1024],
+                reply_markup=_story_keyboard(story_id),
+                read_timeout=120,
+                write_timeout=300,
+            )
+    logger.info(f"Story #{story_id} zur Freigabe an Telegram gesendet")
 
 
 async def send_text(text: str) -> None:
@@ -69,12 +98,32 @@ def apply_decision(reel_id: int, action: str) -> str | None:
     return ack
 
 
+def apply_story_decision(story_id: int, action: str) -> str | None:
+    """Pure DB part of a story review decision (unit-testable without Telegram)."""
+    if action not in _STORY_DECISIONS:
+        return None
+    status, ack = _STORY_DECISIONS[action]
+    with session_scope() as session:
+        story = session.get(StoryRow, story_id)
+        if story is None:
+            return None
+        if story.status != "pending_review":
+            return f"Story #{story_id} ist bereits '{story.status}'"
+        story.status = status
+    logger.info(f"Review-Entscheidung für Story #{story_id}: {status}")
+    return ack
+
+
 async def _on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
     try:
-        action, raw_id = query.data.split(":", 1)
-        ack = apply_decision(int(raw_id), action)
+        if query.data.startswith("story:"):
+            _, action, raw_id = query.data.split(":", 2)
+            ack = apply_story_decision(int(raw_id), action)
+        else:
+            action, raw_id = query.data.split(":", 1)
+            ack = apply_decision(int(raw_id), action)
     except (ValueError, AttributeError):
         ack = None
     caption = query.message.caption or ""

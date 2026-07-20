@@ -2,8 +2,11 @@
 
   python main.py collect            # collect + score trends only
   python main.py generate           # produce one reel end-to-end → review queue
+  python main.py stocks             # build today's earnings + watchlist stories → review
+  python main.py verify-ig          # read-only check of the IG token/account/permissions
   python main.py run                # scheduler loop: review bot + slots + insights
   python main.py publish --reel 3   # manually publish a specific reel
+  python main.py post-story --story 7  # manually publish a specific story card
   python main.py status             # queue counts, budget, last posts
 """
 import argparse
@@ -39,6 +42,73 @@ def cmd_generate() -> None:
     if reel_id is None:
         raise SystemExit(1)
     print(f"Reel #{reel_id} erstellt und in die Review-Queue gestellt.")
+
+
+def cmd_stocks() -> None:
+    from src.stocks.pipeline import build_daily_stories, send_stories_for_review
+
+    async def _run() -> list[int]:
+        ids = await asyncio.to_thread(build_daily_stories)
+        await send_stories_for_review(ids)
+        return ids
+
+    ids = asyncio.run(_run())
+    if not ids:
+        raise SystemExit("Keine Stories erstellt")
+    print(f"{len(ids)} Story-Card(s) erstellt und in die Review-Queue gestellt: {ids}")
+
+
+def cmd_verify_ig() -> None:
+    from src.publish.instagram import verify_credentials
+
+    result = asyncio.run(verify_credentials())
+    if not result["ok"]:
+        print(f"❌ IG-Token-Check fehlgeschlagen: {result['error']}")
+        raise SystemExit(1)
+
+    print("✅ Token gültig")
+    print(f"   Konto:      @{result['username']}  (user_id {result['user_id']})")
+    if result["matches_config"] is True:
+        print("   IG_USER_ID: stimmt mit .env überein")
+    elif result["matches_config"] is False:
+        print(f"   ⚠️ IG_USER_ID in .env ({config.IG_USER_ID}) ≠ Token-user_id ({result['user_id']})")
+    print(f"   API-Pfad:   {result['graph_base']}"
+          f"  ({'Instagram-Login' if result['is_ig_login'] else 'Facebook-Login'})")
+
+    perms = result["permissions"]
+    if perms is None:
+        print("   Rechte:     über diesen API-Pfad nicht auslesbar — "
+              "Posten scheitert sonst mit einem Rechte-Fehler (dann App Review / Scope prüfen)")
+    else:
+        need = "instagram_business_content_publish"
+        mark = "✅" if need in perms else "❌ FEHLT"
+        print(f"   Rechte:     {mark} {need}")
+        print(f"               (erteilt: {', '.join(perms) or 'keine'})")
+
+    if not result["publishing_configured"]:
+        print("   Hinweis:    PUBLIC_MEDIA_BASE_URL/PUBLIC_MEDIA_DIR fehlen noch "
+              "(für echtes Posten in Slice 2 nötig)")
+
+
+def cmd_post_story(story_id: int) -> None:
+    from src.publish.instagram import publish_story
+    from src.storage.database import StoryRow
+
+    with session_scope() as session:
+        story = session.get(StoryRow, story_id)
+        if story is None:
+            raise SystemExit(f"Story #{story_id} existiert nicht")
+        image_path, status = story.image_path, story.status
+    if status not in ("approved", "pending_review"):
+        raise SystemExit(f"Story #{story_id} hat Status '{status}' — nicht postbar")
+
+    media_id = asyncio.run(publish_story(image_path))
+    with session_scope() as session:
+        row = session.get(StoryRow, story_id)
+        row.status = "published"
+        row.ig_media_id = media_id
+        row.published_at = datetime.now(timezone.utc).isoformat()
+    print(f"Story #{story_id} veröffentlicht (IG media id {media_id})")
 
 
 def cmd_publish(reel_id: int) -> None:
@@ -106,6 +176,11 @@ async def _run_loop() -> None:
     from src.pipeline import generate_once, handle_regenerates, publish_next_approved
     from src.publish.instagram import publishing_configured
     from src.review.telegram_bot import build_application, review_configured, send_text
+    from src.stocks.pipeline import (
+        build_daily_stories,
+        publish_next_story,
+        send_stories_for_review,
+    )
 
     telegram_app = None
     if review_configured():
@@ -156,7 +231,31 @@ async def _run_loop() -> None:
                 if published and review_configured():
                     await send_text(f"📤 Reel #{published} wurde gepostet.")
 
-            # 4) daily insights
+            # 4) daily stock stories: build once at STOCK_STORY_SLOT, then post the
+            #    approved cards at their slots (earnings/overview morning, candidates
+            #    at their market's trading hours).
+            hhmm = now.strftime("%H:%M")
+            if hhmm == config.STOCK_STORY_SLOT and (slot_key[0], "stocks_build") not in done_slots:
+                done_slots.add((slot_key[0], "stocks_build"))
+                story_ids = await asyncio.to_thread(build_daily_stories)
+                await send_stories_for_review(story_ids)
+
+            if publishing_configured():
+                if hhmm == config.STORY_POST_EARNINGS_SLOT and (slot_key[0], "story_morning") not in done_slots:
+                    done_slots.add((slot_key[0], "story_morning"))
+                    for kinds in (["earnings"], ["candidates"]):
+                        sid = await publish_next_story(kinds=kinds)
+                        if sid and review_configured():
+                            await send_text(f"📤 Story #{sid} wurde gepostet.")
+                for market, slots in (("EU", config.STORY_SLOTS_EU), ("US", config.STORY_SLOTS_US)):
+                    key = (slot_key[0], f"story_{market}_{hhmm}")
+                    if hhmm in slots and key not in done_slots:
+                        done_slots.add(key)
+                        sid = await publish_next_story(kinds=["candidate"], market=market)
+                        if sid and review_configured():
+                            await send_text(f"📤 Story #{sid} ({market}) wurde gepostet.")
+
+            # 5) daily insights
             if now.strftime("%H:%M") == _INSIGHTS_SLOT and (slot_key[0], "insights") not in done_slots:
                 done_slots.add((slot_key[0], "insights"))
                 if publishing_configured():
@@ -170,15 +269,31 @@ async def _run_loop() -> None:
             await telegram_app.shutdown()
 
 
+def _force_utf8_output() -> None:
+    """Windows consoles default to cp1252 and choke on emoji/→ in our output."""
+    import sys
+
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main() -> None:
+    _force_utf8_output()
     parser = argparse.ArgumentParser(description="Instagram Reel-Autopilot")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("collect")
     sub.add_parser("generate")
+    sub.add_parser("stocks")
+    sub.add_parser("verify-ig")
     sub.add_parser("run")
     sub.add_parser("status")
     publish = sub.add_parser("publish")
     publish.add_argument("--reel", type=int, required=True)
+    post_story = sub.add_parser("post-story")
+    post_story.add_argument("--story", type=int, required=True)
     args = parser.parse_args()
 
     init_db()
@@ -186,12 +301,18 @@ def main() -> None:
         cmd_collect()
     elif args.command == "generate":
         cmd_generate()
+    elif args.command == "stocks":
+        cmd_stocks()
+    elif args.command == "verify-ig":
+        cmd_verify_ig()
     elif args.command == "run":
         asyncio.run(_run_loop())
     elif args.command == "status":
         cmd_status()
     elif args.command == "publish":
         cmd_publish(args.reel)
+    elif args.command == "post-story":
+        cmd_post_story(args.story)
 
 
 if __name__ == "__main__":

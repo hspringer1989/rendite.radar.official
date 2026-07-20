@@ -66,3 +66,53 @@ class TTSResult:
     audio_path: str
     words: list[Word]
     duration: float  # seconds
+
+
+# ── Stocks / daily story pipeline ──────────────────────────────────────────
+@dataclass
+class EarningsItem:
+    """One company reporting quarterly figures on a given day."""
+    ticker: str
+    name: str
+    market: str = "US"       # US | EU (drives the posting time zone)
+    when: str = ""           # "vorbörslich" | "nachbörslich" | ""
+
+
+@dataclass
+class StockMetrics:
+    """Chart + fundamentals snapshot for one ticker — NO sentiment, mirroring the
+    trading-bot factor strategy (fundamentals AND chart only)."""
+    ticker: str
+    name: str
+    sector: str
+    market: str              # US | EU
+    price: float
+    currency: str
+    sma20: float
+    sma50: float
+    rsi: float
+    atr: float
+    tech_score: float        # 0–1
+    fund_score: float        # 0–1
+    pe: float | None = None
+    revenue_growth: float | None = None   # fraction, e.g. 0.18 = +18 %
+    profit_margin: float | None = None     # fraction
+
+    @property
+    def blended(self) -> float:
+        # weights live in config so the mix stays tunable (default 0.5 / 0.5)
+        import config
+        return round(
+            config.STOCK_W_TECH * self.tech_score + config.STOCK_W_FUND * self.fund_score, 4
+        )
+
+
+@dataclass
+class Candidate:
+    """A metrics snapshot plus educational chart-derived risk marks and KI text.
+    NOT a buy recommendation — framed as watchlist/education (BaFin finfluencer rules)."""
+    metrics: StockMetrics
+    entry: float             # reference level (last close)
+    stop_loss: float         # chart/ATR-derived risk mark
+    take_profit: float       # chart/ATR-derived potential mark
+    analysis: str = ""       # KI-generated educational analysis text

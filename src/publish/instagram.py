@@ -33,13 +33,17 @@ def publishing_configured() -> bool:
     )
 
 
-def _stage_video(video_path: str) -> tuple[Path, str]:
-    """Copy the reel to the public media dir under a random, unguessable name."""
-    name = f"{secrets.token_urlsafe(16)}.mp4"
+def _stage_media(media_path: str, suffix: str) -> tuple[Path, str]:
+    """Copy the media to the public media dir under a random, unguessable name."""
+    name = f"{secrets.token_urlsafe(16)}{suffix}"
     staged = Path(config.PUBLIC_MEDIA_DIR) / name
     staged.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(video_path, staged)
+    shutil.copyfile(media_path, staged)
     return staged, f"{config.PUBLIC_MEDIA_BASE_URL}/{name}"
+
+
+def _stage_video(video_path: str) -> tuple[Path, str]:
+    return _stage_media(video_path, ".mp4")
 
 
 async def publish_reel(video_path: str, caption: str) -> str:
@@ -92,6 +96,55 @@ async def publish_reel(video_path: str, caption: str) -> str:
     return media_id
 
 
+async def publish_story(image_path: str) -> str:
+    """Publish a rendered story card (image) as an Instagram Story and return the
+    media id. Stories carry no visible caption — all text is baked into the image."""
+    if not publishing_configured():
+        raise PublishError("Instagram-Publishing ist nicht konfiguriert (.env)")
+
+    staged, image_url = _stage_media(image_path, ".jpg")
+    base = f"{config.GRAPH_BASE_URL}/{config.GRAPH_API_VERSION}/{config.IG_USER_ID}"
+    token = {"access_token": config.IG_ACCESS_TOKEN}
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(f"{base}/media", data={
+                "media_type": "STORIES",
+                "image_url": image_url,
+                **token,
+            })
+            body = response.json()
+            if "id" not in body:
+                raise PublishError(f"Story-Container fehlgeschlagen: {body}")
+            container_id = body["id"]
+
+            # Image containers usually finish fast; poll briefly, tolerate a missing
+            # status field by proceeding to publish after the first check.
+            for attempt in range(_POLL_MAX_TRIES):
+                status = (await client.get(
+                    f"{config.GRAPH_BASE_URL}/{config.GRAPH_API_VERSION}/{container_id}",
+                    params={"fields": "status_code", **token},
+                )).json().get("status_code")
+                if status in ("FINISHED", None):
+                    break
+                if status == "ERROR":
+                    raise PublishError("Instagram meldet Verarbeitungsfehler (status ERROR)")
+                await asyncio.sleep(_POLL_INTERVAL_S)
+
+            response = await client.post(f"{base}/media_publish", data={
+                "creation_id": container_id, **token,
+            })
+            body = response.json()
+            if "id" not in body:
+                raise PublishError(f"media_publish (Story) fehlgeschlagen: {body}")
+            media_id = body["id"]
+    finally:
+        staged.unlink(missing_ok=True)  # public exposure only as long as needed
+
+    logger.info(f"Story veröffentlicht: IG media id {media_id}")
+    return media_id
+
+
 async def fetch_insights(media_id: str) -> dict[str, int]:
     """Daily metrics for a published reel; empty dict on API errors."""
     metrics = "views,reach,likes,comments,saved,shares"
@@ -109,6 +162,44 @@ async def fetch_insights(media_id: str) -> dict[str, int]:
         values = entry.get("values") or [{}]
         result[entry["name"]] = int(values[0].get("value") or 0)
     return result
+
+
+async def verify_credentials() -> dict:
+    """Read-only sanity check of the configured IG token — no posting. Reports token
+    validity, the account behind it, whether it matches IG_USER_ID, and (Facebook-login
+    path only) the granted permissions. Returns a structured dict for the CLI."""
+    if not config.IG_ACCESS_TOKEN or not config.IG_USER_ID:
+        return {"ok": False, "error": "IG_ACCESS_TOKEN/IG_USER_ID nicht gesetzt (.env)"}
+
+    base = f"{config.GRAPH_BASE_URL}/{config.GRAPH_API_VERSION}"
+    token = {"access_token": config.IG_ACCESS_TOKEN}
+    is_ig_login = "graph.instagram.com" in config.GRAPH_BASE_URL
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        me = (await client.get(f"{base}/me", params={"fields": "user_id,username", **token})).json()
+        if "error" in me:
+            return {"ok": False, "error": me["error"].get("message", str(me["error"]))}
+
+        user_id = str(me.get("user_id") or me.get("id") or "")
+        # Permissions edge only exists on the classic Facebook-login path.
+        permissions: list[str] | None = None
+        if not is_ig_login:
+            perms = (await client.get(f"{base}/me/permissions", params=token)).json()
+            if "data" in perms:
+                permissions = [
+                    p["permission"] for p in perms["data"] if p.get("status") == "granted"
+                ]
+
+    return {
+        "ok": True,
+        "username": me.get("username", ""),
+        "user_id": user_id,
+        "matches_config": (user_id == str(config.IG_USER_ID)) if user_id else None,
+        "graph_base": config.GRAPH_BASE_URL,
+        "is_ig_login": is_ig_login,
+        "permissions": permissions,
+        "publishing_configured": publishing_configured(),
+    }
 
 
 async def refresh_long_lived_token() -> str | None:

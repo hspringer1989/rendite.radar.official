@@ -87,7 +87,19 @@ def builtin_fake() -> "FakeLLM":
         "caption": "Drei Fehler, die dich still und leise Geld kosten 💸\n\n⚠️ Keine Anlageberatung — nur Bildung & Unterhaltung.",
         "hashtags": ["#finanzen", "#geld", "#sparen", "#investieren", "#finanzwissen"],
     })
-    return FakeLLM({"score_trends": scores, "generate_script": script})
+    stock_analysis = json.dumps({
+        "candidates": [
+            {"ticker": t, "analysis": (
+                "Charttechnik: Kurs über der 50-Tage-Linie, Trend intakt. "
+                "Fundamental: solide Kennzahlen. Risiko: Rücksetzer bei Marktschwäche möglich. "
+                "Rein edukative Einordnung, keine Empfehlung.")}
+            for t in ("AAPL", "JPM", "XOM", "SAP.DE", "ALV.DE")
+        ],
+        "overall": "Breit gestreute Auswahl über mehrere Branchen — sachliche Beobachtung, keine Empfehlung.",
+    })
+    return FakeLLM({
+        "score_trends": scores, "generate_script": script, "stock_analysis": stock_analysis,
+    })
 
 
 def get_llm() -> LLMProvider:

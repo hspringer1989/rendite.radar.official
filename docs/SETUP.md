@@ -27,7 +27,7 @@ die Affiliate-Anmeldungen (Schritt 5) haben Prüf-Vorlauf, daher früh starten.
    (Wortlaut variiert, z. B. "Verwalte Nachrichten und Inhalte auf Instagram");
    Business-Portfolio-Verknüpfung kann übersprungen werden.
 2. In der App unter **Instagram → API setup with Instagram business login**:
-   das Renditeradar-Konto als Instagram-Tester/Konto hinzufügen und autorisieren
+   das RenditeRebell-Konto als Instagram-Tester/Konto hinzufügen und autorisieren
    (Berechtigungen `instagram_business_basic`, `instagram_business_content_publish`,
    `instagram_business_manage_insights`).
 3. Dort direkt den **Access Token generieren** (long-lived, 60 Tage) und die

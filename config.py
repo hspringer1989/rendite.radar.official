@@ -75,14 +75,44 @@ POSTING_SLOTS = _get_list("POSTING_SLOTS", "08:00,12:30,18:00")
 TIMEZONE = _get("TIMEZONE", "Europe/Berlin")
 
 # ── Branding ──────────────────────────────────────────────────────────────
+# Display name + IG handle of the actually connected account (@rendite.radar.official,
+# verified via `main.py verify-ig`). Keep these aligned with the real account.
 BRAND_NAME = _get("BRAND_NAME", "Renditeradar")
+BRAND_HANDLE = _get("BRAND_HANDLE", "@rendite.radar.official")
+
+# ── Stocks / daily story pipeline ─────────────────────────────────────────
+# yfinance | fake  (fake = offline testing without network)
+STOCK_DATA_PROVIDER = _get("STOCK_DATA_PROVIDER", "yfinance")
+# Ticker universe scanned for both the earnings card and the watchlist candidates.
+# Mix US + EU (EU tickers carry an exchange suffix, e.g. SAP.DE).
+STOCK_UNIVERSE = _get_list(
+    "STOCK_UNIVERSE",
+    "AAPL,MSFT,NVDA,AMZN,GOOGL,META,JPM,V,XOM,JNJ,PG,KO,"
+    "SAP.DE,SIE.DE,ALV.DE,ASML.AS,MC.PA,NESN.SW",
+)
+STOCK_CANDIDATES_COUNT = int(_get("STOCK_CANDIDATES_COUNT", "4"))
+# Blended factor weights (no sentiment): tech + fund should sum to 1.0.
+STOCK_W_TECH = float(_get("STOCK_W_TECH", "0.5"))
+STOCK_W_FUND = float(_get("STOCK_W_FUND", "0.5"))
+# Chart-derived risk marks (ATR multiples), same convention as the trading-bot.
+STOCK_ATR_STOP_MULT = float(_get("STOCK_ATR_STOP_MULT", "2.0"))
+STOCK_ATR_TP_MULT = float(_get("STOCK_ATR_TP_MULT", "4.0"))
+# When to build the daily earnings + watchlist stories (local TIMEZONE).
+STOCK_STORY_SLOT = _get("STOCK_STORY_SLOT", "09:00")
+# Story POSTING slots (local TIMEZONE). Earnings + watchlist-overview go out in the
+# morning; candidate cards are spread over the day at their market's trading hours
+# (US cash session ≈ 15:30–22:00 Berlin, EU ≈ 09:00–17:30 Berlin). One story per slot.
+STORY_POST_EARNINGS_SLOT = _get("STORY_POST_EARNINGS_SLOT", "09:30")
+STORY_SLOTS_EU = _get_list("STORY_SLOTS_EU", "10:30,13:00,15:00")
+STORY_SLOTS_US = _get_list("STORY_SLOTS_US", "16:00,18:30,20:30")
 
 # ── Pipeline ──────────────────────────────────────────────────────────────
 MIN_TREND_SCORE = float(_get("MIN_TREND_SCORE", "0.65"))
 DATA_DIR = BASE_DIR / "data"
 OUTPUT_DIR = DATA_DIR / "reels"
+STORY_DIR = DATA_DIR / "stories"
 BROLL_CACHE_DIR = DATA_DIR / "broll"
 DB_PATH = DATA_DIR / "reel_autopilot.db"
 
-for _d in (DATA_DIR, OUTPUT_DIR, BROLL_CACHE_DIR):
+for _d in (DATA_DIR, OUTPUT_DIR, STORY_DIR, BROLL_CACHE_DIR):
     _d.mkdir(parents=True, exist_ok=True)

@@ -58,6 +58,26 @@ class ReelRow(Base):
     published_at: Mapped[str] = mapped_column(String(40), default="")
 
 
+class StoryRow(Base):
+    """A rendered Instagram-story card in the review/posting queue.
+    kind: earnings | candidates | candidate. Same status flow as reels."""
+    __tablename__ = "stories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16), index=True)
+    ticker: Mapped[str] = mapped_column(String(16), default="")  # only for kind='candidate'
+    market: Mapped[str] = mapped_column(String(4), default="")   # US | EU
+    image_path: Mapped[str] = mapped_column(Text, default="")
+    caption: Mapped[str] = mapped_column(Text, default="")
+    analysis_json: Mapped[str] = mapped_column(Text, default="")
+    trade_date: Mapped[str] = mapped_column(String(10), index=True, default="")  # YYYY-MM-DD
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    error: Mapped[str] = mapped_column(Text, default="")
+    ig_media_id: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[str] = mapped_column(String(40), default=_utcnow)
+    published_at: Mapped[str] = mapped_column(String(40), default="")
+
+
 class MetricRow(Base):
     __tablename__ = "metrics"
 
