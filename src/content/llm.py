@@ -60,8 +60,9 @@ def parse_json_response(raw: str):
     """Parse a JSON object/array from an LLM response, tolerating ``` fences."""
     cleaned = re.sub(r"^```(?:json)?\s*", "", raw.strip())
     cleaned = re.sub(r"\s*```$", "", cleaned)
+    # strict=False tolerates literal control chars (e.g. newlines) inside strings.
     try:
-        return json.loads(cleaned)
+        return json.loads(cleaned, strict=False)
     except json.JSONDecodeError as exc:
         logger.warning(f"LLM-Antwort kein gültiges JSON: {exc} — {cleaned[:120]}")
         return None
@@ -91,14 +92,14 @@ def builtin_fake() -> "FakeLLM":
         "candidates": [
             {
                 "ticker": t,
-                "chart": ("Der Kurs liegt über seiner 50-Tage-Linie, der Trend zeigt nach oben. "
-                          "Der RSI – ein Maß für die Schwungkraft – ist neutral, also weder überhitzt "
-                          "noch schwach. Rein charttechnische Beobachtung, keine Empfehlung."),
-                "fundamental": ("Die Bewertung ist fair und das Unternehmen wächst solide bei guter "
-                                "Gewinnmarge. Das spricht für ein stabiles Geschäft. "
+                "chart": ("Der Kurs notiert über 20- und 50-Tage-Linie, die Struktur bleibt aufwärts. "
+                          "Der RSI um 55 (Schwungkraft-Maß) zeigt Luft nach oben ohne Überhitzung. "
+                          "Bis zur Risikomarke sind es rund 5%. Beobachtung, keine Empfehlung."),
+                "fundamental": ("Mit KGV rund 18 ist die Aktie moderat bewertet (KGV = Preis je Euro Gewinn). "
+                                "Das Umsatzplus von 10% und eine Marge von 20% stützen das Geschäft. "
                                 "Datenbasierte Einordnung, keine Empfehlung."),
-                "overall": ("Chart und Fundamentaldaten zeigen in eine ähnliche Richtung – ein "
-                            "stimmiges Bild. Chancen und Risiken bleiben bestehen. Keine Empfehlung."),
+                "overall": ("Chart und Fundamentaldaten stützen sich gegenseitig – ein stimmiges Bild. "
+                            "Chance ist die Zielmarke, Risiko der Rückfall unter die Stop-Marke. Keine Empfehlung."),
             }
             for t in ("AAPL", "JPM", "XOM", "SAP.DE", "ALV.DE")
         ],

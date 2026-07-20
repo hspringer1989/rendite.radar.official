@@ -20,29 +20,34 @@ from src.stocks.market_data import MarketData
 
 _DISCLAIMER = "⚠️ Keine Anlageberatung — nur Bildung & Unterhaltung. Kein Kauf-/Verkaufsaufruf."
 
-_SYSTEM_PROMPT = """Du erklärst für ein deutsches Instagram-Finanz-Bildungsprofil in EINFACHER, \
-leicht verständlicher Sprache, was Charttechnik und Fundamentaldaten zu einer Aktie AKTUELL zeigen.
+_SYSTEM_PROMPT = """Du bist ein quantitativer Finanzanalyst und erklärst für ein deutsches \
+Instagram-Finanz-Bildungsprofil FUNDIERT und knapp, was Charttechnik und Fundamentaldaten \
+zu einer Aktie AKTUELL zeigen.
 
-STIL (wichtig, Instagram-tauglich):
-- Einfaches Deutsch, kurze Sätze, alltagsnah. Fachbegriffe (RSI, KGV, ATR) in einem Halbsatz erklären.
-- Pro Textfeld 2–4 Sätze: erst der Kernpunkt, dann eine knappe Begründung mit den Zahlen. \
-Leicht verdaulich, nicht überladen, gern etwas anschaulich.
+ANSPRUCH — der Text muss substanziell sein, KEINE Floskeln:
+- Nenne die KONKRETEN Zahlen aus den Daten und interpretiere sie (nicht nur wiederholen):
+  · Charttechnik: Kurs relativ zur 20- und 50-Tage-Linie (Trendstruktur), RSI-Wert \
+(>70 überkauft/Rücksetzer-Risiko, <30 überverkauft, 45–65 gesund), Abstand von der aktuellen \
+Referenz zur Risikomarke (Stop) und Potenzialmarke (Ziel).
+  · Fundamental: KGV (teuer/günstig, grob <15 günstig, >30 teuer), Umsatzwachstum, Gewinnmarge.
+- Formuliere eine klare KERNAUSSAGE (These), nicht nur Adjektive. \
+Schlecht: "solide bewertet". Gut: "Mit KGV 11 klar günstiger als der Gesamtmarkt, das Umsatzplus von 15% stützt das."
+- Dicht und knapp: 2–3 Sätze je Card. Alltagsnah, Fachbegriffe in einem Halbsatz erklärt.
 
 STRIKTE COMPLIANCE (BaFin/MAR, keine Ausnahmen):
-- KEINE Anlageberatung, KEINE Kauf-/Verkaufsempfehlung. Schreibe beobachtend ("Der Chart zeigt…", \
-"Fundamental fällt auf…"), NIEMALS direktiv ("Kaufen", "Jetzt einsteigen", "Sollte man holen").
-- Die Ampel (bullisch/neutral/bärisch bzw. stark/neutral/schwach) beschreibt, was die DATEN zeigen, \
-nicht was jemand tun soll.
-- Stop-/Ziel-Marken sind charttechnische Risiko-/Potenzialmarken, keine Handlungsanweisung.
-- Chancen UND Risiken benennen, keine Rendite-Versprechen, keine Sicherheit suggerieren.
+- Beobachtend, KEINE Kauf-/Verkaufsempfehlung ("Der Chart zeigt…", NIEMALS "Kaufen"/"Einsteigen").
+- Ampel und Marken beschreiben die DATEN, nicht eine Handlung. Immer Chance UND Risiko benennen. \
+Keine Rendite-Versprechen.
 
+WICHTIG für gültiges JSON: INNERHALB der Textwerte KEINE doppelten Anführungszeichen (") und \
+keine Zeilenumbrüche verwenden.
 Antworte AUSSCHLIESSLICH mit gültigem JSON, kein Fließtext, keine Markdown-Umrandung."""
 
-_USER_TEMPLATE = """Erkläre edukativ die folgenden {n} Watchlist-Titel (unterschiedliche Branchen). \
-Gib je Titel DREI getrennte, einfach verständliche Texte: zur Charttechnik, zu den Fundamentaldaten \
-und ein Gesamtbild. Das Gesamtbild fasst zusammen, ob Chart und Fundamental in dieselbe Richtung zeigen.
+_USER_TEMPLATE = """Analysiere die folgenden {n} Watchlist-Titel quantitativ. Gib je Titel DREI \
+dichte, fundierte Texte: Charttechnik, Fundamental, Gesamtbild. Nutze die konkreten Zahlen unten \
+und interpretiere sie — jeder Satz soll etwas aussagen.
 
-Titel-Daten (Ampel-Level ist vorgegeben, richte den Ton daran aus):
+Daten je Titel (Ampel-Level ist vorgegeben, richte den Ton daran aus):
 {payload}
 
 Gib genau diese JSON-Struktur zurück:
@@ -50,9 +55,9 @@ Gib genau diese JSON-Struktur zurück:
   "candidates": [
     {{
       "ticker": "TICK",
-      "chart": "2-4 einfache Sätze: was der Kursverlauf/Trend/RSI zeigt, inkl. der Risiko-/Zielmarke",
-      "fundamental": "2-4 einfache Sätze: Bewertung (KGV), Wachstum, Marge – alltagsnah erklärt",
-      "overall": "2-3 Sätze Gesamtbild: passen Chart und Fundamental zusammen? Chance und Risiko"
+      "chart": "2-3 dichte Sätze mit Zahlen: Trendstruktur (Kurs vs. SMA20/SMA50), RSI-Lage, Abstand zu Stop/Ziel",
+      "fundamental": "2-3 dichte Sätze mit Zahlen: KGV (teuer/günstig), Wachstum, Marge — was das konkret heißt",
+      "overall": "1-2 Sätze: passen Chart und Fundamental zusammen? Wichtigste Chance und wichtigstes Risiko"
     }}
   ]
 }}"""
@@ -141,23 +146,48 @@ def _sanitise(text: str) -> str:
     return cleaned
 
 
-def _fallback_texts(m: StockMetrics) -> tuple[str, str, str]:
-    """Rule-based educational texts (chart, fundamental, overall) used when Claude is
-    unavailable / over budget."""
-    trend = "über" if m.price > m.sma50 else "unter"
+def _fallback_texts(c: Candidate) -> tuple[str, str, str]:
+    """Rule-based, data-citing educational texts (chart, fundamental, overall) used
+    when Claude is unavailable / over budget. Concrete numbers, not filler."""
+    m = c.metrics
+    pos20 = "über" if m.price > m.sma20 else "unter"
+    pos50 = "über" if m.price > m.sma50 else "unter"
+    trend = ("ein intakter Aufwärtstrend" if m.price > m.sma50 and m.sma20 > m.sma50
+             else "ein angeschlagener Trend" if m.price < m.sma50
+             else "eine Seitwärtsphase")
+    if m.rsi >= 70:
+        rsi_note = "überkauft, kurzfristig steigt das Rücksetzer-Risiko"
+    elif m.rsi <= 30:
+        rsi_note = "überverkauft, technisch stark gefallen"
+    elif 45 <= m.rsi <= 65:
+        rsi_note = "im gesunden Bereich"
+    else:
+        rsi_note = "neutral"
+    down = (c.entry - c.stop_loss) / c.entry * 100 if c.entry else 0
+    up = (c.take_profit - c.entry) / c.entry * 100 if c.entry else 0
     chart = (
-        f"Der Kurs liegt aktuell {trend} der 50-Tage-Linie. Der RSI – ein Maß für die "
-        f"Schwungkraft – steht bei {m.rsi:.0f}. Rein charttechnische Beobachtung, keine Empfehlung."
+        f"Der Kurs steht {pos20} der 20- und {pos50} der 50-Tage-Linie – {trend}. "
+        f"Der RSI (Schwungkraft-Maß) liegt bei {m.rsi:.0f}, also {rsi_note}. "
+        f"Bis zur Risikomarke sind es ca. {down:.0f}%, bis zur Zielmarke ca. {up:.0f}%. Beobachtung, keine Empfehlung."
     )
-    pe = f"rund {m.pe:.0f}" if m.pe else "nicht verfügbar"
+
+    pe = f"{m.pe:.0f}" if m.pe else None
+    val = ("günstig bewertet" if (m.pe and m.pe < 15)
+           else "moderat bewertet" if (m.pe and m.pe < 30)
+           else "hoch bewertet" if m.pe else "ohne belastbares KGV")
     growth = f"{m.revenue_growth * 100:.0f}%" if m.revenue_growth is not None else "n/a"
+    margin = f"{m.profit_margin * 100:.0f}%" if m.profit_margin is not None else "n/a"
     fund = (
-        f"Bewertung: KGV {pe} (wie teuer die Aktie je Euro Gewinn ist), Umsatzwachstum {growth}. "
+        f"Mit einem KGV von {pe or 'n/a'} ist die Aktie {val} (KGV = Preis je Euro Jahresgewinn). "
+        f"Das Umsatzwachstum liegt bei {growth}, die Gewinnmarge bei {margin}. "
         f"Datenbasierte Einordnung, keine Empfehlung."
     )
+
+    aligned = (m.price > m.sma50) == (m.fund_score >= 0.5)
     overall = (
-        "Chart und Fundamentaldaten ergeben zusammen das Gesamtbild oben – "
-        "eine beobachtende Einordnung, keine Kauf-/Verkaufsempfehlung."
+        f"Charttechnik und Fundamentaldaten {'stützen sich gegenseitig' if aligned else 'ziehen unterschiedlich'} "
+        f"(Chart-Score {m.tech_score:.2f}, Fundamental-Score {m.fund_score:.2f}). "
+        f"Chance ist die Zielmarke, Risiko der Rückfall unter die Stop-Marke. Keine Empfehlung."
     )
     return chart, fund, overall
 
@@ -185,7 +215,7 @@ def build_candidates(
 
 def _apply_fallback(candidates: list[Candidate]) -> None:
     for c in candidates:
-        c.chart_text, c.fundamental_text, c.overall_text = _fallback_texts(c.metrics)
+        c.chart_text, c.fundamental_text, c.overall_text = _fallback_texts(c)
 
 
 def _attach_analysis(candidates: list[Candidate], llm: LLMProvider) -> None:
@@ -211,20 +241,23 @@ def _attach_analysis(candidates: list[Candidate], llm: LLMProvider) -> None:
         for c in candidates
     ], ensure_ascii=False)
 
-    try:
-        raw = llm.complete(
-            system=_SYSTEM_PROMPT,
-            user=_USER_TEMPLATE.format(n=len(candidates), payload=payload),
-            model=config.CLAUDE_MODEL,
-            max_tokens=2200,
-            purpose="stock_analysis",
-        )
-    except Exception as exc:  # noqa: BLE001 — never crash the daily run on the LLM
-        logger.warning(f"Claude-Analyse fehlgeschlagen ({exc}) — regelbasierte Texte")
-        _apply_fallback(candidates)
-        return
+    user = _USER_TEMPLATE.format(n=len(candidates), payload=payload)
+    data = None
+    for attempt in range(2):  # one retry: the model occasionally emits invalid JSON
+        try:
+            raw = llm.complete(
+                system=_SYSTEM_PROMPT, user=user,
+                model=config.CLAUDE_MODEL, max_tokens=2600, purpose="stock_analysis",
+            )
+        except Exception as exc:  # noqa: BLE001 — never crash the daily run on the LLM
+            logger.warning(f"Claude-Analyse fehlgeschlagen ({exc}) — regelbasierte Texte")
+            _apply_fallback(candidates)
+            return
+        data = parse_json_response(raw)
+        if isinstance(data, dict) and data.get("candidates"):
+            break
+        logger.warning(f"Analyse-JSON ungültig (Versuch {attempt + 1}/2)")
 
-    data = parse_json_response(raw)
     by_ticker: dict[str, dict] = {}
     if isinstance(data, dict):
         for entry in data.get("candidates", []):
@@ -233,7 +266,7 @@ def _attach_analysis(candidates: list[Candidate], llm: LLMProvider) -> None:
 
     for c in candidates:
         entry = by_ticker.get(c.metrics.ticker.upper())
-        fb_chart, fb_fund, fb_overall = _fallback_texts(c.metrics)
+        fb_chart, fb_fund, fb_overall = _fallback_texts(c)
         if entry:
             c.chart_text = _sanitise(str(entry.get("chart", "")).strip()) or fb_chart
             c.fundamental_text = _sanitise(str(entry.get("fundamental", "")).strip()) or fb_fund
