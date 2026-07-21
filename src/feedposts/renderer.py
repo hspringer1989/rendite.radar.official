@@ -45,20 +45,48 @@ def _counter(draw, index: int, total: int) -> None:
               fill=branding.BLUE)
 
 
+def _follow_button(draw, x: int, y: int) -> int:
+    """Punchy blue 'FOLGEN' pill + handle to make the call-to-action pop."""
+    label = "JETZT FOLGEN  »"
+    font = branding.load_font(42, bold=True)
+    pill = (x, y, x + 560, y + 92)
+    draw.rounded_rectangle(pill, radius=46, fill=branding.BLUE)
+    draw.text((x + 40, y + 22), label, font=font, fill=(255, 255, 255))
+    draw.text((x + 6, y + 116), config.BRAND_HANDLE, font=branding.load_font(36, bold=True),
+              fill=branding.BLUE_LIGHT)
+    return y + 92 + 116
+
+
 def _render_hero(slide: Slide, index: int, total: int, is_cta: bool, out_path: str) -> str:
     from PIL import ImageDraw
 
-    base = _panel(_open_bg(config.FEED_TEMPLATE_TITLE), (60, 300, W - 60, 1040), alpha=205)
+    h_font = branding.load_font(54, bold=True)
+    b_font = branding.load_font(36)
+    h_lines = branding.wrap_lines(slide.heading, 24)
+    b_lines = branding.wrap_lines(slide.body, 34)
+    h_lh, b_lh = 66, 48
+
+    pad = 56
+    content_h = len(h_lines) * h_lh + 22 + len(b_lines) * b_lh
+    if is_cta:
+        content_h += 40 + 208 + 34    # follow button + handle + disclaimer
+    panel_h = content_h + 2 * pad
+    top, bottom = 165, H - 175                   # keep clear of counter + template logo
+    avail = bottom - top
+    y0 = top + (avail - panel_h) // 2 if panel_h <= avail else top   # centre, else top-anchor
+    y1 = y0 + panel_h
+
+    base = _panel(_open_bg(config.FEED_TEMPLATE_TITLE), (60, y0, W - 60, y1), alpha=215)
     draw = ImageDraw.Draw(base)
     _counter(draw, index, total)
 
-    y = branding.wrap(draw, slide.heading, branding.load_font(60, bold=True),
-                      100, 360, 22, branding.FG, 74)
-    y = branding.wrap(draw, slide.body, branding.load_font(40),
-                      100, y + 30, 30, branding.FG, 54)
+    x = 100
+    y = branding.draw_lines(draw, h_lines, x, y0 + pad, h_font,
+                            branding.BLUE if is_cta else branding.FG, h_lh)
+    y = branding.draw_lines(draw, b_lines, x, y + 22, b_font, branding.FG, b_lh)
     if is_cta:
-        draw.text((100, 960), f"⚠️ {_CTA_DISCLAIMER}"[:60], font=branding.load_font(24),
-                  fill=branding.MUTED)
+        y = _follow_button(draw, x, y + 40)
+        draw.text((x, y + 8), _CTA_DISCLAIMER, font=branding.load_font(22), fill=branding.MUTED)
     return _save(base, out_path)
 
 

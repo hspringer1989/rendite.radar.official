@@ -36,13 +36,24 @@ def load_font(size: int, bold: bool = False):
     return ImageFont.load_default()
 
 
+def wrap_lines(text: str, width_chars: int) -> list[str]:
+    """Wrap text to lines (honouring explicit newlines) without drawing — for measuring."""
+    lines: list[str] = []
+    for para in text.split("\n"):
+        lines.extend(textwrap.wrap(para, width=width_chars) or [""])
+    return lines
+
+
+def draw_lines(draw, lines: list[str], x: int, y: int, font, fill, line_h: int) -> int:
+    for line in lines:
+        draw.text((x, y), line, font=font, fill=fill)
+        y += line_h
+    return y
+
+
 def wrap(draw, text: str, font, x: int, y: int, width_chars: int, fill, line_h: int) -> int:
     """Draw wrapped text, honouring explicit newlines. Returns the y after the block."""
-    for para in text.split("\n"):
-        for line in textwrap.wrap(para, width=width_chars) or [""]:
-            draw.text((x, y), line, font=font, fill=fill)
-            y += line_h
-    return y
+    return draw_lines(draw, wrap_lines(text, width_chars), x, y, font, fill, line_h)
 
 
 def market_badge(draw, x: int, y: int, market: str) -> int:
