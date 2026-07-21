@@ -16,34 +16,23 @@ import textwrap
 from pathlib import Path
 
 import config
+from src import branding
 from src.models import Candidate, EarningsItem
 from src.stocks import indicators as ind
 
 W, H = 1080, 1920
-_BG = (14, 18, 28)
-_FG = (235, 238, 242)
-_MUTED = (148, 163, 184)
-_CARD = (24, 30, 44)
-_ACCENT = (34, 197, 94)      # green / positive
-_AMBER = (234, 179, 8)       # neutral
-_RED = (239, 68, 68)         # negative
-_BLUE = (96, 165, 250)       # EU badge / SMA20
-
-_LIGHT = {"pos": _ACCENT, "neu": _AMBER, "neg": _RED}
-
-
-def _font(size: int, bold: bool = False):
-    from PIL import ImageFont
-
-    candidates = (
-        ["arialbd.ttf", "DejaVuSans-Bold.ttf"] if bold else ["arial.ttf", "DejaVuSans.ttf"]
-    )
-    for name in candidates:
-        try:
-            return ImageFont.truetype(name, size)
-        except OSError:
-            continue
-    return ImageFont.load_default()
+_BG = branding.BG
+_FG = branding.FG
+_MUTED = branding.MUTED
+_CARD = branding.CARD
+_BRAND = branding.BLUE       # brand accent (header, ticker, badges)
+_ACCENT = branding.GREEN     # semantic "up/target/positive" (traffic light, TP line)
+_AMBER = branding.AMBER
+_RED = branding.RED
+_BLUE = branding.BLUE_LIGHT  # SMA20 chart overlay
+_LIGHT = branding.LIGHT
+_font = branding.load_font
+_market_badge = branding.market_badge
 
 
 def _new_card():
@@ -51,7 +40,7 @@ def _new_card():
 
     img = Image.new("RGB", (W, H), _BG)
     draw = ImageDraw.Draw(img)
-    draw.text((60, 66), config.BRAND_NAME, font=_font(52, bold=True), fill=_ACCENT)
+    draw.text((60, 66), config.BRAND_NAME, font=_font(52, bold=True), fill=_BRAND)
     if config.BRAND_HANDLE:
         draw.text((62, 128), config.BRAND_HANDLE, font=_font(28), fill=_MUTED)
     _footer(draw)
@@ -62,14 +51,6 @@ def _footer(draw) -> None:
     disclaimer = "Keine Anlageberatung · keine Kauf-/Verkaufsempfehlung · Werbung"
     draw.line((60, H - 150, W - 60, H - 150), fill=_MUTED, width=2)
     draw.text((60, H - 130), disclaimer, font=_font(26), fill=_MUTED)
-
-
-def _market_badge(draw, x: int, y: int, market: str) -> int:
-    color = _ACCENT if market == "US" else _BLUE
-    label = market or "US"
-    draw.rounded_rectangle((x, y, x + 78, y + 46), radius=12, outline=color, width=3)
-    draw.text((x + 16, y + 6), label, font=_font(28, bold=True), fill=color)
-    return x + 98
 
 
 def _wrap(draw, text: str, font, x: int, y: int, width_chars: int, fill, line_h: int) -> int:
@@ -243,7 +224,7 @@ def render_earnings_card(items: list[EarningsItem], out_path: str, day_label: st
 
     for it in items[:14]:
         x = _market_badge(draw, 60, y, it.market)
-        draw.text((x, y + 2), it.ticker, font=_font(40, bold=True), fill=_ACCENT)
+        draw.text((x, y + 2), it.ticker, font=_font(40, bold=True), fill=_BRAND)
         draw.text((x + 190, y + 8), f"{it.name}"[:24], font=_font(32), fill=_FG)
         if it.when:
             draw.text((x, y + 50), it.when, font=_font(26), fill=_MUTED)

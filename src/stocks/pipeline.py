@@ -7,11 +7,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timedelta, timezone as _tz
 from pathlib import Path
 from zoneinfo import ZoneInfo
-
-from datetime import datetime, timezone as _tz
 
 from loguru import logger
 from sqlalchemy import select
@@ -39,6 +37,23 @@ def _today_local() -> datetime:
 
 def _stamp() -> str:
     return _today_local().strftime("%Y%m%d_%H%M%S")
+
+
+def _recent_candidate_tickers(cooldown_days: int) -> set[str]:
+    """Tickers analysed as candidates within the cooldown window — held back from a new
+    build so the same stock is not re-analysed within `cooldown_days`. `superseded`/
+    `failed` cards don't count (they never reached the audience)."""
+    cutoff = (_today_local() - timedelta(days=cooldown_days)).strftime("%Y-%m-%d")
+    with session_scope() as session:
+        rows = session.execute(
+            select(StoryRow.ticker).where(
+                StoryRow.kind == "candidate",
+                StoryRow.ticker != "",
+                StoryRow.trade_date >= cutoff,
+                StoryRow.status.in_(("pending_review", "approved", "published", "rejected")),
+            )
+        ).scalars().all()
+    return {t for t in rows}
 
 
 def _persist(kind: str, image_path: str, caption: str, trade_date: str,
@@ -76,8 +91,13 @@ def build_daily_stories(
                               analysis={"tickers": [e.ticker for e in earnings]}))
     logger.info(f"Earnings-Story erstellt: {len(earnings)} Termine")
 
-    # 2) Watchlist candidates (chart + fundamentals, no sentiment)
-    candidates = build_candidates(md, config.STOCK_UNIVERSE, llm)
+    # 2) Watchlist candidates (chart + fundamentals, no sentiment) — respecting the
+    #    per-ticker cooldown so recently-analysed stocks are not repeated.
+    exclude = _recent_candidate_tickers(config.STOCK_REPEAT_COOLDOWN_DAYS)
+    if exclude:
+        logger.info(f"Cooldown: {len(exclude)} Ticker der letzten "
+                    f"{config.STOCK_REPEAT_COOLDOWN_DAYS} Tage ausgeschlossen")
+    candidates = build_candidates(md, config.STOCK_UNIVERSE, llm, exclude=exclude)
     if not candidates:
         logger.warning("Keine Kandidaten — nur Earnings-Story erstellt")
         return story_ids

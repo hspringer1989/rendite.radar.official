@@ -10,10 +10,12 @@ pip install -r requirements.txt
 python main.py collect            # collect + score trends only
 python main.py generate           # produce one reel end-to-end → review queue
 python main.py stocks             # build today's earnings + watchlist story cards → review
+python main.py feedpost           # generate the next educational feed carousel → review
 python main.py verify-ig          # read-only check of the IG token/account/permissions
-python main.py run                # scheduler loop: review bot + reel & story slots + insights
+python main.py run                # scheduler loop: review bot + story/feed slots + insights
 python main.py publish --reel 3   # manually publish a specific reel
 python main.py post-story --story 7  # manually publish a specific story card
+python main.py post-feed --post 2 # manually publish a specific feed carousel
 python main.py status             # queue counts, Claude budget, last posts
 
 python -m pytest tests/           # offline: fake LLM/TTS, no network; ffmpeg test auto-skips
@@ -126,6 +128,45 @@ publish_story (media_type=STORIES)  src/publish/instagram.py
   stickers/links). No emoji in cards — the bundled fonts render them as tofu;
   emoji live only in Telegram captions. Story posting needs `PUBLIC_MEDIA_*`
   (public image URL) just like reels.
+
+### Feed posts (educational carousels, 2×/week)  — `src/feedposts/`
+
+A third content path (besides reels and stock stories): **permanent Instagram feed
+carousels** (1080×1350 slides) on educational finance topics, posted Tue+Thu 17:00.
+
+```
+FeedTopicRow queue (seeded)         src/storage/database.py  (_FEED_TOPIC_SEED)
+        │  next 'queued' topic (by position)
+        ▼
+build_feed_post (Sonnet)            src/feedposts/generator.py  (purpose="feed_post")
+  5–8 slides {heading,body} + caption + hashtags; educational, no advice; JSON-robust
+        ▼
+render_feed_slides (Pillow)         src/feedposts/renderer.py
+  slide 1 = hook + last = CTA on the blue radar template (assets/templates/feed_bg_title.png);
+  middle = dark template (feed_bg_content.png). Text avoids the logo + bottom chart.
+        ▼
+FeedPostRow(pending_review)         table `feed_posts`
+        ▼
+Telegram review: slides as context + one caption msg with feed:approve/reject buttons
+        ▼
+publish_feed_post (CAROUSEL)        src/publish/instagram.py  (children + media_publish)
+```
+
+`main.py feedpost` builds one now; `main.py run` generates on a feed-slot day (morning) and
+posts at the slot. `apply_feed_decision` handles the review buttons (`feed:` callback prefix).
+
+### Brand palette — `src/branding.py`
+
+Shared blue-on-dark Renditeradar palette (BLUE #2386D1, matching the Claude-Design templates)
++ Pillow helpers (`load_font`, `wrap`, `market_badge`), used by BOTH `story_cards.py` and the
+feed renderer so stories and feed posts look consistent. Traffic-light green/amber/red stays
+reserved for the signal meaning, not the brand accent.
+
+### Ticker cooldown
+
+`build_daily_stories` excludes tickers analysed in the last `STOCK_REPEAT_COOLDOWN_DAYS` (30)
+via `_recent_candidate_tickers`; `select_candidates(exclude=…)` holds them back and only reuses
+them as a last resort. `STOCK_UNIVERSE` was widened to ~90 US+EU names to feed the cooldown.
 
 ## Compliance (do not weaken)
 

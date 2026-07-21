@@ -87,10 +87,21 @@ STOCK_DATA_PROVIDER = _get("STOCK_DATA_PROVIDER", "yfinance")
 # Mix US + EU (EU tickers carry an exchange suffix, e.g. SAP.DE).
 STOCK_UNIVERSE = _get_list(
     "STOCK_UNIVERSE",
-    "AAPL,MSFT,NVDA,AMZN,GOOGL,META,JPM,V,XOM,JNJ,PG,KO,"
-    "SAP.DE,SIE.DE,ALV.DE,ASML.AS,MC.PA,NESN.SW",
+    # ~90 US + EU large/mid caps so the 30-day per-ticker cooldown never runs dry.
+    # US:
+    "AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,BRK-B,JPM,V,MA,JNJ,WMT,PG,HD,XOM,CVX,"
+    "KO,PEP,ABBV,MRK,PFE,LLY,BAC,WFC,GS,MS,C,AXP,DIS,NFLX,ADBE,CRM,ORCL,CSCO,"
+    "INTC,AMD,QCOM,TXN,AVGO,IBM,GE,CAT,BA,HON,UNH,CVS,T,VZ,CMCSA,NKE,MCD,SBUX,"
+    "COST,TGT,"
+    # EU (yfinance exchange suffixes):
+    "SAP.DE,SIE.DE,ALV.DE,DTE.DE,AIR.DE,BAS.DE,BAYN.DE,BMW.DE,MBG.DE,VOW3.DE,"
+    "DBK.DE,IFX.DE,ADS.DE,MUV2.DE,RWE.DE,ASML.AS,HEIA.AS,PRX.AS,MC.PA,OR.PA,"
+    "RMS.PA,AI.PA,SU.PA,TTE.PA,SAN.PA,BNP.PA,NESN.SW,NOVN.SW,ROG.SW,UBSG.SW,"
+    "ISP.MI,ENI.MI,ENEL.MI,SHEL.L,AZN.L,HSBA.L,ULVR.L,BP.L",
 )
 STOCK_CANDIDATES_COUNT = int(_get("STOCK_CANDIDATES_COUNT", "4"))
+# A ticker analysed as a candidate is not picked again for this many days.
+STOCK_REPEAT_COOLDOWN_DAYS = int(_get("STOCK_REPEAT_COOLDOWN_DAYS", "30"))
 # Blended factor weights (no sentiment): tech + fund should sum to 1.0.
 STOCK_W_TECH = float(_get("STOCK_W_TECH", "0.5"))
 STOCK_W_FUND = float(_get("STOCK_W_FUND", "0.5"))
@@ -99,6 +110,12 @@ STOCK_ATR_STOP_MULT = float(_get("STOCK_ATR_STOP_MULT", "2.0"))
 STOCK_ATR_TP_MULT = float(_get("STOCK_ATR_TP_MULT", "4.0"))
 # When to build the daily earnings + watchlist stories (local TIMEZONE).
 STOCK_STORY_SLOT = _get("STOCK_STORY_SLOT", "09:00")
+
+# ── Feed posts (educational carousels, 2×/week) ────────────────────────────
+# Posting slots as "<WEEKDAY> HH:MM" (MON..SUN, local TIMEZONE).
+FEED_POST_SLOTS = _get_list("FEED_POST_SLOTS", "TUE 17:00,THU 17:00")
+FEED_TEMPLATE_TITLE = BASE_DIR / "assets" / "templates" / "feed_bg_title.png"
+FEED_TEMPLATE_CONTENT = BASE_DIR / "assets" / "templates" / "feed_bg_content.png"
 # Story POSTING slots (local TIMEZONE). Earnings + watchlist-overview go out in the
 # morning; candidate cards are spread over the day at their market's trading hours
 # (US cash session ≈ 15:30–22:00 Berlin, EU ≈ 09:00–17:30 Berlin). One story per slot.
@@ -111,8 +128,9 @@ MIN_TREND_SCORE = float(_get("MIN_TREND_SCORE", "0.65"))
 DATA_DIR = BASE_DIR / "data"
 OUTPUT_DIR = DATA_DIR / "reels"
 STORY_DIR = DATA_DIR / "stories"
+FEED_DIR = DATA_DIR / "feed"
 BROLL_CACHE_DIR = DATA_DIR / "broll"
 DB_PATH = DATA_DIR / "reel_autopilot.db"
 
-for _d in (DATA_DIR, OUTPUT_DIR, STORY_DIR, BROLL_CACHE_DIR):
+for _d in (DATA_DIR, OUTPUT_DIR, STORY_DIR, FEED_DIR, BROLL_CACHE_DIR):
     _d.mkdir(parents=True, exist_ok=True)

@@ -9,7 +9,7 @@ from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CallbackQueryHandler, ContextTypes
 
 import config
-from src.storage.database import ReelRow, StoryRow, session_scope
+from src.storage.database import FeedPostRow, ReelRow, StoryRow, session_scope
 
 _DECISIONS = {
     "approve": ("approved", "✅ Freigegeben — wird zum nächsten Slot gepostet"),
@@ -19,6 +19,11 @@ _DECISIONS = {
 
 _STORY_DECISIONS = {
     "approve": ("approved", "✅ Freigegeben — wird zur passenden Handelszeit gepostet"),
+    "reject": ("rejected", "❌ Verworfen"),
+}
+
+_FEED_DECISIONS = {
+    "approve": ("approved", "✅ Freigegeben — wird zum nächsten Feed-Slot gepostet"),
     "reject": ("rejected", "❌ Verworfen"),
 }
 
@@ -75,6 +80,25 @@ async def send_photo_for_review(story_id: int, image_path: str, caption: str) ->
                 write_timeout=300,
             )
     logger.info(f"Story #{story_id} zur Freigabe an Telegram gesendet")
+
+
+def _feed_keyboard(post_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Posten", callback_data=f"feed:approve:{post_id}"),
+        InlineKeyboardButton("❌ Verwerfen", callback_data=f"feed:reject:{post_id}"),
+    ]])
+
+
+async def send_feed_review_prompt(post_id: int, title: str, caption: str) -> None:
+    """After the slides, one text message with the caption and ✅/❌ buttons."""
+    bot = Bot(token=config.TELEGRAM_BOT_TOKEN)
+    text = f"📰 Feed-Beitrag #{post_id} wartet auf Freigabe\n\n{title}\n\n{caption}"
+    async with bot:
+        await bot.send_message(
+            chat_id=config.TELEGRAM_CHAT_ID, text=text[:4096],
+            reply_markup=_feed_keyboard(post_id),
+        )
+    logger.info(f"Feed-Post #{post_id} zur Freigabe an Telegram gesendet")
 
 
 async def send_photo_plain(image_path: str, caption: str) -> None:
@@ -146,6 +170,22 @@ def apply_story_decision(story_id: int, action: str) -> str | None:
     return ack
 
 
+def apply_feed_decision(post_id: int, action: str) -> str | None:
+    """Pure DB part of a feed-post review decision (unit-testable without Telegram)."""
+    if action not in _FEED_DECISIONS:
+        return None
+    status, ack = _FEED_DECISIONS[action]
+    with session_scope() as session:
+        post = session.get(FeedPostRow, post_id)
+        if post is None:
+            return None
+        if post.status != "pending_review":
+            return f"Feed-Post #{post_id} ist bereits '{post.status}'"
+        post.status = status
+    logger.info(f"Review-Entscheidung für Feed-Post #{post_id}: {status}")
+    return ack
+
+
 async def _on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
@@ -153,15 +193,24 @@ async def _on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         if query.data.startswith("story:"):
             _, action, raw_id = query.data.split(":", 2)
             ack = apply_story_decision(int(raw_id), action)
+        elif query.data.startswith("feed:"):
+            _, action, raw_id = query.data.split(":", 2)
+            ack = apply_feed_decision(int(raw_id), action)
         else:
             action, raw_id = query.data.split(":", 1)
             ack = apply_decision(int(raw_id), action)
     except (ValueError, AttributeError):
         ack = None
-    caption = query.message.caption or ""
-    await query.edit_message_caption(
-        caption=f"{caption}\n\n{ack or '⚠️ Unbekannte Aktion'}"[:1024], reply_markup=None
-    )
+    msg = query.message
+    note = ack or "⚠️ Unbekannte Aktion"
+    if msg.caption is not None:  # photo message (reel/story)
+        await query.edit_message_caption(
+            caption=f"{msg.caption}\n\n{note}"[:1024], reply_markup=None
+        )
+    else:  # text message (feed-post review prompt)
+        await query.edit_message_text(
+            text=f"{msg.text or ''}\n\n{note}"[:4096], reply_markup=None
+        )
 
 
 def build_application() -> Application:

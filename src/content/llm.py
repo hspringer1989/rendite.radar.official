@@ -103,8 +103,32 @@ def builtin_fake() -> "FakeLLM":
             for t in ("AAPL", "JPM", "XOM", "SAP.DE", "ALV.DE")
         ],
     })
+    feed_post = json.dumps({
+        "title": "So wählen wir Aktien für unsere Analysen aus",
+        "slides": [
+            {"heading": "Wie funktioniert die Auswahl?",
+             "body": "Wir kombinieren zwei Blickwinkel: Charttechnik und Fundamentaldaten. "
+                     "Jeder Titel bekommt einen Score — ganz ohne Bauchgefühl."},
+            {"heading": "Charttechnik",
+             "body": "Wir schauen auf den Trend (Kurs über 20- und 50-Tage-Linie) und den RSI, "
+                     "ein Maß für die Schwungkraft. Gesund ist ein RSI zwischen 45 und 65."},
+            {"heading": "Fundamental",
+             "body": "Wir prüfen KGV (wie teuer je Euro Gewinn), Umsatzwachstum und Gewinnmarge. "
+                     "Günstig bewertet plus Wachstum ist ein starkes Zeichen."},
+            {"heading": "Der Gesamt-Score",
+             "body": "50% Charttechnik + 50% Fundamental ergeben eine Ampel: grün, gelb oder rot. "
+                     "Wir wählen Titel aus VERSCHIEDENEN Branchen für Streuung."},
+            {"heading": "Folge für tägliche Analysen",
+             "body": "Jeden Tag frische, datenbasierte Einordnungen. Folge @rendite.radar.official. "
+                     "Keine Anlageberatung."},
+        ],
+        "caption": "So läuft unsere Aktien-Auswahl ab — transparent und datenbasiert.\n\n"
+                   "Keine Anlageberatung · nur Bildung.",
+        "hashtags": ["#finanzen", "#aktien", "#börse", "#investieren", "#charttechnik"],
+    })
     return FakeLLM({
-        "score_trends": scores, "generate_script": script, "stock_analysis": stock_analysis,
+        "score_trends": scores, "generate_script": script,
+        "stock_analysis": stock_analysis, "feed_post": feed_post,
     })
 
 

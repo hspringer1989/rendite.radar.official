@@ -145,6 +145,74 @@ async def publish_story(image_path: str) -> str:
     return media_id
 
 
+async def publish_feed_post(image_paths: list[str], caption: str) -> str:
+    """Publish a feed post and return the IG media id. A single image posts directly;
+    multiple images post as a CAROUSEL (each slide an is_carousel_item child)."""
+    if not publishing_configured():
+        raise PublishError("Instagram-Publishing ist nicht konfiguriert (.env)")
+    if not image_paths:
+        raise PublishError("Keine Slides zum Posten")
+
+    base = f"{config.GRAPH_BASE_URL}/{config.GRAPH_API_VERSION}/{config.IG_USER_ID}"
+    token = {"access_token": config.IG_ACCESS_TOKEN}
+    staged: list[Path] = []
+
+    async def _poll(client, container_id: str) -> None:
+        for _ in range(_POLL_MAX_TRIES):
+            status = (await client.get(
+                f"{config.GRAPH_BASE_URL}/{config.GRAPH_API_VERSION}/{container_id}",
+                params={"fields": "status_code", **token},
+            )).json().get("status_code")
+            if status in ("FINISHED", None):
+                return
+            if status == "ERROR":
+                raise PublishError("Instagram meldet Verarbeitungsfehler (status ERROR)")
+            await asyncio.sleep(_POLL_INTERVAL_S)
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            child_ids: list[str] = []
+            for path in image_paths:
+                stage, url = _stage_media(path, ".jpg")
+                staged.append(stage)
+                data = {"image_url": url, **token}
+                if len(image_paths) > 1:
+                    data["is_carousel_item"] = "true"
+                else:
+                    data["caption"] = caption[:2200]
+                body = (await client.post(f"{base}/media", data=data)).json()
+                if "id" not in body:
+                    raise PublishError(f"Container-Erstellung fehlgeschlagen: {body}")
+                child_ids.append(body["id"])
+
+            if len(image_paths) == 1:
+                container_id = child_ids[0]
+            else:
+                body = (await client.post(f"{base}/media", data={
+                    "media_type": "CAROUSEL",
+                    "children": ",".join(child_ids),
+                    "caption": caption[:2200],
+                    **token,
+                })).json()
+                if "id" not in body:
+                    raise PublishError(f"Carousel-Container fehlgeschlagen: {body}")
+                container_id = body["id"]
+
+            await _poll(client, container_id)
+            body = (await client.post(f"{base}/media_publish", data={
+                "creation_id": container_id, **token,
+            })).json()
+            if "id" not in body:
+                raise PublishError(f"media_publish (Feed) fehlgeschlagen: {body}")
+            media_id = body["id"]
+    finally:
+        for stage in staged:
+            stage.unlink(missing_ok=True)
+
+    logger.info(f"Feed-Post veröffentlicht: IG media id {media_id}")
+    return media_id
+
+
 async def fetch_insights(media_id: str) -> dict[str, int]:
     """Daily metrics for a published reel; empty dict on API errors."""
     metrics = "views,reach,likes,comments,saved,shares"

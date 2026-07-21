@@ -106,29 +106,31 @@ def analyze_ticker(md: MarketData, ticker: str) -> StockMetrics | None:
 
 
 def select_candidates(
-    md: MarketData, universe: list[str], count: int
+    md: MarketData, universe: list[str], count: int, exclude: set[str] | None = None
 ) -> list[StockMetrics]:
-    """Score the whole universe and pick the top `count` by blended score, keeping
-    each from a DISTINCT sector (diversification, like the factor strategy)."""
+    """Score the whole universe and pick the top `count` by blended score, each from a
+    DISTINCT sector. Tickers in `exclude` (recently analysed, 30-day cooldown) are held
+    back and only reused as a last resort so we never return fewer than `count`."""
+    exclude = {t.upper() for t in (exclude or set())}
     scored = [m for t in universe if (m := analyze_ticker(md, t)) is not None]
     scored.sort(key=lambda m: m.blended, reverse=True)
 
     picked: list[StockMetrics] = []
     seen_sectors: set[str] = set()
-    for m in scored:
-        if m.sector in seen_sectors:
-            continue
-        picked.append(m)
-        seen_sectors.add(m.sector)
-        if len(picked) >= count:
-            break
-    # Top up from the remainder if too few distinct sectors were available.
-    if len(picked) < count:
-        for m in scored:
-            if m not in picked:
-                picked.append(m)
-            if len(picked) >= count:
-                break
+
+    def _take(pool, respect_sectors: bool) -> None:
+        for m in pool:
+            if len(picked) >= count or m in picked:
+                continue
+            if respect_sectors and m.sector in seen_sectors:
+                continue
+            picked.append(m)
+            seen_sectors.add(m.sector)
+
+    fresh = [m for m in scored if m.ticker.upper() not in exclude]
+    _take(fresh, respect_sectors=True)          # 1) fresh, sector-diversified
+    _take(fresh, respect_sectors=False)         # 2) fresh, any sector
+    _take(scored, respect_sectors=False)        # 3) last resort: allow cooldown tickers
     return picked
 
 
@@ -190,11 +192,13 @@ def _fallback_texts(c: Candidate) -> tuple[str, str, str]:
 
 
 def build_candidates(
-    md: MarketData, universe: list[str], llm: LLMProvider, count: int | None = None
+    md: MarketData, universe: list[str], llm: LLMProvider,
+    count: int | None = None, exclude: set[str] | None = None,
 ) -> list[Candidate]:
-    """Full path: select → risk marks → one educational Claude call for the texts."""
+    """Full path: select → risk marks → one educational Claude call for the texts.
+    `exclude` holds recently-analysed tickers (30-day cooldown)."""
     count = count or config.STOCK_CANDIDATES_COUNT
-    metrics = select_candidates(md, universe, count)
+    metrics = select_candidates(md, universe, count, exclude=exclude)
     if not metrics:
         logger.warning("Keine Kandidaten mit ausreichenden Daten gefunden")
         return []

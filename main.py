@@ -3,10 +3,12 @@
   python main.py collect            # collect + score trends only
   python main.py generate           # produce one reel end-to-end → review queue
   python main.py stocks             # build today's earnings + watchlist stories → review
+  python main.py feedpost           # generate the next educational feed carousel → review
   python main.py verify-ig          # read-only check of the IG token/account/permissions
   python main.py run                # scheduler loop: review bot + slots + insights
   python main.py publish --reel 3   # manually publish a specific reel
   python main.py post-story --story 7  # manually publish a specific story card
+  python main.py post-feed --post 2 # manually publish a specific feed carousel
   python main.py status             # queue counts, budget, last posts
 """
 import argparse
@@ -18,11 +20,18 @@ from loguru import logger
 from sqlalchemy import func, select
 
 import config
-from src.storage.database import ApiUsageRow, ReelRow, init_db, session_scope
+from src.storage.database import ApiUsageRow, FeedPostRow, ReelRow, init_db, session_scope
 
 _LOOP_TICK_S = 60
 _GENERATE_COOLDOWN_S = 3600
 _INSIGHTS_SLOT = "07:00"
+_WEEKDAYS = {"MON": 0, "TUE": 1, "WED": 2, "THU": 3, "FRI": 4, "SAT": 5, "SUN": 6}
+
+
+def _feed_slots_today(now: datetime) -> list[str]:
+    """FEED_POST_SLOTS entries ("TUE 17:00") whose weekday matches `now`."""
+    return [s for s in config.FEED_POST_SLOTS
+            if _WEEKDAYS.get(s.split()[0].upper()) == now.weekday()]
 
 
 def _now_local() -> datetime:
@@ -56,6 +65,42 @@ def cmd_stocks() -> None:
     if not ids:
         raise SystemExit("Keine Stories erstellt")
     print(f"{len(ids)} Story-Card(s) erstellt und in die Review-Queue gestellt: {ids}")
+
+
+def cmd_feedpost() -> None:
+    from src.feedposts.pipeline import build_next_feed_post, send_feed_for_review
+
+    async def _run() -> int | None:
+        pid = await asyncio.to_thread(build_next_feed_post)
+        if pid is not None:
+            await send_feed_for_review(pid)
+        return pid
+
+    pid = asyncio.run(_run())
+    if pid is None:
+        raise SystemExit("Kein Feed-Beitrag erstellt (Queue leer oder Generierung fehlgeschlagen)")
+    print(f"Feed-Beitrag #{pid} erstellt und in die Review-Queue gestellt.")
+
+
+def cmd_post_feed(post_id: int) -> None:
+    import json
+
+    from src.publish.instagram import publish_feed_post
+
+    with session_scope() as session:
+        post = session.get(FeedPostRow, post_id)
+        if post is None:
+            raise SystemExit(f"Feed-Post #{post_id} existiert nicht")
+        if post.status not in ("approved", "pending_review"):
+            raise SystemExit(f"Feed-Post #{post_id} hat Status '{post.status}' — nicht postbar")
+        image_paths, caption = json.loads(post.image_paths_json), post.caption
+    media_id = asyncio.run(publish_feed_post(image_paths, caption))
+    with session_scope() as session:
+        row = session.get(FeedPostRow, post_id)
+        row.status = "published"
+        row.ig_media_id = media_id
+        row.published_at = datetime.now(timezone.utc).isoformat()
+    print(f"Feed-Post #{post_id} veröffentlicht (IG media id {media_id})")
 
 
 def cmd_verify_ig() -> None:
@@ -176,6 +221,11 @@ async def _run_loop() -> None:
     from src.pipeline import generate_once, handle_regenerates, publish_next_approved
     from src.publish.instagram import publishing_configured
     from src.review.telegram_bot import build_application, review_configured, send_text
+    from src.feedposts.pipeline import (
+        build_next_feed_post,
+        publish_next_feed_post,
+        send_feed_for_review,
+    )
     from src.stocks.pipeline import (
         build_daily_stories,
         publish_next_candidate_group,
@@ -258,7 +308,33 @@ async def _run_loop() -> None:
                                 f"📤 Kandidaten-Story ({market}, {len(posted)} Cards) gepostet."
                             )
 
-            # 5) daily insights
+            # 5) feed posts (2×/week): generate on a feed-slot day at the morning build
+            #    tick, post at the exact slot time (weekday + HH:MM).
+            feed_today = _feed_slots_today(now)
+            if (feed_today and hhmm == config.STOCK_STORY_SLOT
+                    and (slot_key[0], "feed_build") not in done_slots):
+                done_slots.add((slot_key[0], "feed_build"))
+                with session_scope() as session:
+                    pending = session.execute(
+                        select(func.count()).where(
+                            FeedPostRow.status.in_(("pending_review", "approved")))
+                    ).scalar()
+                if not pending:
+                    pid = await asyncio.to_thread(build_next_feed_post)
+                    if pid is not None:
+                        await send_feed_for_review(pid)
+
+            if publishing_configured():
+                for slot in feed_today:
+                    slot_time = slot.split()[1]
+                    key = (slot_key[0], f"feed_post_{slot_time}")
+                    if hhmm == slot_time and key not in done_slots:
+                        done_slots.add(key)
+                        pid = await publish_next_feed_post()
+                        if pid and review_configured():
+                            await send_text(f"📤 Feed-Beitrag #{pid} wurde gepostet.")
+
+            # 6) daily insights
             if now.strftime("%H:%M") == _INSIGHTS_SLOT and (slot_key[0], "insights") not in done_slots:
                 done_slots.add((slot_key[0], "insights"))
                 if publishing_configured():
@@ -290,6 +366,7 @@ def main() -> None:
     sub.add_parser("collect")
     sub.add_parser("generate")
     sub.add_parser("stocks")
+    sub.add_parser("feedpost")
     sub.add_parser("verify-ig")
     sub.add_parser("run")
     sub.add_parser("status")
@@ -297,6 +374,8 @@ def main() -> None:
     publish.add_argument("--reel", type=int, required=True)
     post_story = sub.add_parser("post-story")
     post_story.add_argument("--story", type=int, required=True)
+    post_feed = sub.add_parser("post-feed")
+    post_feed.add_argument("--post", type=int, required=True)
     args = parser.parse_args()
 
     init_db()
@@ -306,6 +385,8 @@ def main() -> None:
         cmd_generate()
     elif args.command == "stocks":
         cmd_stocks()
+    elif args.command == "feedpost":
+        cmd_feedpost()
     elif args.command == "verify-ig":
         cmd_verify_ig()
     elif args.command == "run":
@@ -316,6 +397,8 @@ def main() -> None:
         cmd_publish(args.reel)
     elif args.command == "post-story":
         cmd_post_story(args.story)
+    elif args.command == "post-feed":
+        cmd_post_feed(args.post)
 
 
 if __name__ == "__main__":

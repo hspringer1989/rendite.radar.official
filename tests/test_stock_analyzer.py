@@ -27,6 +27,20 @@ def test_select_candidates_diversifies_sectors():
     assert len({m.sector for m in picked}) == 3  # distinct sectors
 
 
+def test_select_candidates_respects_exclude():
+    md = FakeMarketData()
+    first = select_candidates(md, _UNIVERSE, count=3)
+    excluded = {first[0].ticker}
+    second = select_candidates(md, _UNIVERSE, count=3, exclude=excluded)
+    assert first[0].ticker not in [m.ticker for m in second]
+
+
+def test_select_candidates_last_resort_when_all_excluded():
+    md = FakeMarketData()
+    picked = select_candidates(md, _UNIVERSE, count=3, exclude=set(_UNIVERSE))
+    assert len(picked) == 3  # reuses cooldown tickers rather than returning nothing
+
+
 def test_build_candidates_has_levels_and_three_texts():
     cands = build_candidates(FakeMarketData(), _UNIVERSE, _fake_llm(), count=3)
     assert len(cands) == 3

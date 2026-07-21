@@ -109,6 +109,23 @@ class StockMetrics:
 
 
 @dataclass
+class Slide:
+    """One carousel slide of a feed post."""
+    heading: str
+    body: str
+
+
+@dataclass
+class FeedPost:
+    """A generated educational carousel feed post (5–8 slides)."""
+    topic_slug: str
+    title: str
+    slides: list[Slide]
+    caption: str
+    hashtags: list[str]
+
+
+@dataclass
 class Candidate:
     """A metrics snapshot plus educational chart-derived risk marks and KI text.
     NOT a buy recommendation — framed as watchlist/education (BaFin finfluencer rules)."""

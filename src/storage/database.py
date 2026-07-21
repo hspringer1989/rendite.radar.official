@@ -79,6 +79,77 @@ class StoryRow(Base):
     published_at: Mapped[str] = mapped_column(String(40), default="")
 
 
+class FeedTopicRow(Base):
+    """Backlog of educational feed-post topics (seeded once). status: queued | used."""
+    __tablename__ = "feed_topics"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    slug: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    title: Mapped[str] = mapped_column(Text)
+    brief: Mapped[str] = mapped_column(Text, default="")   # guidance for the generator
+    position: Mapped[int] = mapped_column(Integer, default=0, index=True)
+    status: Mapped[str] = mapped_column(String(12), default="queued", index=True)
+
+
+class FeedPostRow(Base):
+    """A generated multi-slide carousel feed post. Same review flow as stories."""
+    __tablename__ = "feed_posts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    topic_slug: Mapped[str] = mapped_column(String(64), index=True, default="")
+    title: Mapped[str] = mapped_column(Text, default="")
+    slides_json: Mapped[str] = mapped_column(Text, default="")        # [{heading, body}, …]
+    image_paths_json: Mapped[str] = mapped_column(Text, default="")   # [path, …] in order
+    caption: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    error: Mapped[str] = mapped_column(Text, default="")
+    ig_media_id: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[str] = mapped_column(String(40), default=_utcnow)
+    published_at: Mapped[str] = mapped_column(String(40), default="")
+
+
+# Seed backlog: the first two are the user's requested launch posts, then evergreen ideas.
+_FEED_TOPIC_SEED = [
+    ("strategie-auswahl", "Wie wir Aktien für unsere Analysen auswählen",
+     "Erkläre die Auswahl-Strategie fundiert und einfach: Kombination aus CHARTTECHNIK "
+     "(Trendstruktur über SMA20/50, RSI-Bänder 45-65 gesund) und FUNDAMENTALDATEN (KGV, "
+     "Umsatzwachstum, Gewinnmarge). Blended-Score 50% Chart + 50% Fundamental, Auswahl der "
+     "Top-Titel über VERSCHIEDENE Branchen (Diversifikation). Risiko-/Zielmarken aus dem ATR "
+     "(2x/4x). Ampel grün/gelb/rot = bullisch/neutral/bärisch, rein beobachtend. "
+     "Betone: datenbasiert, transparent, KEINE Anlageberatung."),
+    ("trading-bot-claude-code",
+     "Trading-Bot mit Claude Code bauen & ans Echtgeld-Depot anschließen",
+     "Kompakte Schritt-für-Schritt-Anleitung anhand eines echten Projekts: 1) Strategie "
+     "definieren, 2) Marktdaten (z.B. yfinance), 3) Signal-Analyse mit Claude, 4) "
+     "Risk-Management (Position-Sizing, Stop-Loss, ATR-Bracket-Orders), 5) Broker per API "
+     "anbinden (Interactive Brokers), 6) ERST Paper-Trading, dann Echtgeld. Deutliche "
+     "RISIKO-WARNUNG: echtes Geld, Totalverlust möglich, keine Gewinngarantie, KEINE "
+     "Anlageberatung. Ton: motivierend aber ehrlich."),
+    ("etf-basics", "ETFs einfach erklärt: der bequeme Einstieg",
+     "Was ist ein ETF, wie funktioniert Streuung, TER/Kosten, thesaurierend vs. ausschüttend, "
+     "Sparplan-Idee. Einfach, edukativ, keine Empfehlung."),
+    ("kgv-erklaert", "Das KGV: wie teuer ist eine Aktie wirklich?",
+     "KGV = Kurs-Gewinn-Verhältnis einfach erklärt, was hoch/niedrig bedeutet, Grenzen der "
+     "Kennzahl, Branchenunterschiede. Edukativ."),
+    ("rsi-erklaert", "RSI: das Fieberthermometer für Aktien",
+     "RSI erklärt: Schwungkraft-Maß, überkauft >70 / überverkauft <30, gesunder Bereich, "
+     "warum kein Signal allein reicht. Edukativ."),
+    ("stop-loss", "Stop-Loss: wie man Verluste begrenzt",
+     "Stop-Loss-Prinzip, ATR-basierte Marken, warum Risikomanagement wichtiger ist als das "
+     "perfekte Einstiegssignal. Edukativ."),
+    ("diversifikation", "Warum Streuung dein bester Freund ist",
+     "Diversifikation über Branchen/Regionen, Klumpenrisiko, Beispiel. Edukativ."),
+    ("zinseszins", "Zinseszins: der stille Vermögens-Booster",
+     "Zinseszins-Effekt, Zeit als Hebel, einfaches Rechenbeispiel. Edukativ."),
+    ("anlegerfehler", "5 Fehler, die Anfänger an der Börse machen",
+     "Häufige Fehler: Panikverkäufe, Market-Timing, Klumpenrisiko, Gebühren ignorieren, kein "
+     "Plan. Edukativ, mit Augenzwinkern."),
+    ("earnings-season", "Earnings-Season: worauf es bei Quartalszahlen ankommt",
+     "Was Quartalszahlen sind, EPS/Umsatz/Guidance, warum Kurse trotz guter Zahlen fallen "
+     "können. Edukativ."),
+]
+
+
 class MetricRow(Base):
     __tablename__ = "metrics"
 
@@ -117,6 +188,19 @@ def _migrate(engine) -> None:
             conn.exec_driver_sql("ALTER TABLE stories ADD COLUMN part VARCHAR(12) DEFAULT ''")
 
 
+def _seed_feed_topics(session_factory) -> None:
+    """Insert the seed feed-post topics once (idempotent by slug)."""
+    session = session_factory()
+    try:
+        existing = {s for (s,) in session.execute(select(FeedTopicRow.slug)).all()}
+        for pos, (slug, title, brief) in enumerate(_FEED_TOPIC_SEED):
+            if slug not in existing:
+                session.add(FeedTopicRow(slug=slug, title=title, brief=brief, position=pos))
+        session.commit()
+    finally:
+        session.close()
+
+
 def init_db(db_path: str | None = None) -> None:
     global _engine, _session_factory
     path = db_path or str(config.DB_PATH)
@@ -124,6 +208,7 @@ def init_db(db_path: str | None = None) -> None:
     Base.metadata.create_all(_engine)
     _migrate(_engine)
     _session_factory = sessionmaker(bind=_engine, expire_on_commit=False)
+    _seed_feed_topics(_session_factory)
 
 
 @contextmanager
