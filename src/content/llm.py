@@ -118,9 +118,9 @@ def builtin_fake() -> "FakeLLM":
             {"heading": "Der Gesamt-Score",
              "body": "50% Charttechnik + 50% Fundamental ergeben eine Ampel: grün, gelb oder rot. "
                      "Wir wählen Titel aus VERSCHIEDENEN Branchen für Streuung."},
-            {"heading": "Folge für tägliche Analysen",
-             "body": "Jeden Tag frische, datenbasierte Einordnungen. Folge @rendite.radar.official. "
-                     "Keine Anlageberatung."},
+            {"heading": "Zusammenfassung",
+             "body": "Jeden Tag frische, datenbasierte Einordnungen — folge @rendite.radar.official "
+                     "für mehr. Keine Anlageberatung."},
         ],
         "caption": "So läuft unsere Aktien-Auswahl ab — transparent und datenbasiert.\n\n"
                    "Keine Anlageberatung · nur Bildung.",

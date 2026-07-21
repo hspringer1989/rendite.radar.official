@@ -1,9 +1,9 @@
-"""Renders a FeedPost to 1080×1350 carousel slides on the brand templates.
+"""Renders a FeedPost to 1080×1350 carousel slides on the blue radar brand template.
 
-- Hook (first) and CTA (last) slide → blue radar template with a dark readability panel.
-- Content slides → dark template; heading (blue) + body (white) in a safe left column
-  that clears the top-right logo and the bottom chart motif.
-Pillow is imported lazily so importing this module never requires it."""
+Every slide uses the same blue radar background (config.FEED_TEMPLATE_TITLE) with a dark
+readability panel behind the text, so the template's decorative blips never hide the
+heading. Hook (first) + CTA (last) get a centred panel; the CTA adds a "JETZT FOLGEN"
+button. Pillow is imported lazily so importing this module never requires it."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -93,14 +93,22 @@ def _render_hero(slide: Slide, index: int, total: int, is_cta: bool, out_path: s
 def _render_content(slide: Slide, index: int, total: int, out_path: str) -> str:
     from PIL import ImageDraw
 
-    base = _open_bg(config.FEED_TEMPLATE_CONTENT)
+    h_font = branding.load_font(52, bold=True)
+    b_font = branding.load_font(40)
+    h_lines = branding.wrap_lines(slide.heading, 24)
+    b_lines = branding.wrap_lines(slide.body, 34)
+
+    # All slides share the blue radar background; a dark panel behind the text keeps it
+    # readable and hides the template's decorative dots/blips.
+    y0, pad = 175, 46
+    content_h = len(h_lines) * 64 + 26 + len(b_lines) * 54
+    base = _panel(_open_bg(config.FEED_TEMPLATE_TITLE),
+                  (50, y0 - pad, W - 50, y0 + content_h + pad), alpha=210)
     draw = ImageDraw.Draw(base)
     _counter(draw, index, total)
 
-    y = branding.wrap(draw, slide.heading, branding.load_font(52, bold=True),
-                      70, 200, 24, branding.BLUE, 64)
-    branding.wrap(draw, slide.body, branding.load_font(40),
-                  70, y + 30, 34, branding.FG, 54)
+    y = branding.draw_lines(draw, h_lines, 90, y0, h_font, branding.BLUE, 64)
+    branding.draw_lines(draw, b_lines, 90, y + 26, b_font, branding.FG, 54)
     return _save(base, out_path)
 
 

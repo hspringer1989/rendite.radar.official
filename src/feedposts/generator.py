@@ -25,7 +25,9 @@ STIL:
 - Slide 1 = starker Hook (Titel + ein Satz, der neugierig macht).
 - Mittlere Slides: je EIN Gedanke, kurze Überschrift + 2–4 knappe Sätze. Konkret, alltagsnah, \
 Fachbegriffe in einem Halbsatz erklärt. Gern Zahlen/Beispiele.
-- Letzte Slide = kurze Zusammenfassung + Call-to-Action ("Folge @rendite.radar.official …").
+- Letzte Slide = kurze Zusammenfassung. Ihre ÜBERSCHRIFT bleibt schlicht (z.B. "Zusammenfassung" \
+oder "Kurz gesagt") — NICHT auffordernd wie "Folge uns", denn ein Folgen-Button wird visuell \
+ergänzt. Der Folgen-Hinweis darf einmal knapp im Fließtext stehen.
 - 5–8 Slides insgesamt.
 
 COMPLIANCE (zwingend, BaFin/MAR):
