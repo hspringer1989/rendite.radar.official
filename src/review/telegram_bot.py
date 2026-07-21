@@ -189,16 +189,20 @@ def apply_feed_decision(post_id: int, action: str) -> str | None:
 async def _on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
+    kind, action, item_id, ack = None, None, None, None
     try:
         if query.data.startswith("story:"):
             _, action, raw_id = query.data.split(":", 2)
-            ack = apply_story_decision(int(raw_id), action)
+            kind, item_id = "story", int(raw_id)
+            ack = apply_story_decision(item_id, action)
         elif query.data.startswith("feed:"):
             _, action, raw_id = query.data.split(":", 2)
-            ack = apply_feed_decision(int(raw_id), action)
+            kind, item_id = "feed", int(raw_id)
+            ack = apply_feed_decision(item_id, action)
         else:
             action, raw_id = query.data.split(":", 1)
-            ack = apply_decision(int(raw_id), action)
+            kind, item_id = "reel", int(raw_id)
+            ack = apply_decision(item_id, action)
     except (ValueError, AttributeError):
         ack = None
     msg = query.message
@@ -210,6 +214,18 @@ async def _on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     else:  # text message (feed-post review prompt)
         await query.edit_message_text(
             text=f"{msg.text or ''}\n\n{note}"[:4096], reply_markup=None
+        )
+
+    # Feed posts publish IMMEDIATELY on approval (no waiting for the slot), incl. the
+    # "NEUER BEITRAG" announcement story.
+    if kind == "feed" and action == "approve" and ack and "bereits" not in ack:
+        from src.feedposts.pipeline import publish_feed_post_by_id
+
+        posted = await publish_feed_post_by_id(item_id)
+        await send_text(
+            f"📤 Feed-Beitrag #{item_id} wurde gepostet (+ Ankündigungs-Story)."
+            if posted else
+            f"⚠️ Feed-Beitrag #{item_id} konnte nicht gepostet werden (siehe Logs)."
         )
 
 
