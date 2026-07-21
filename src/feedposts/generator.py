@@ -28,7 +28,8 @@ Fachbegriffe in einem Halbsatz erklärt. Gern Zahlen/Beispiele.
 - Letzte Slide = kurze Zusammenfassung. Ihre ÜBERSCHRIFT bleibt schlicht (z.B. "Zusammenfassung" \
 oder "Kurz gesagt") — NICHT auffordernd wie "Folge uns", denn ein Folgen-Button wird visuell \
 ergänzt. Der Folgen-Hinweis darf einmal knapp im Fließtext stehen.
-- 5–8 Slides insgesamt.
+- 5–10 Slides. Bei ausführlichen Schritt-für-Schritt-Anleitungen ruhig 8–10 Slides nutzen und \
+je Schritt KONKRET werden (Werkzeuge, Reihenfolge, Fallstricke), damit Leser es nachbauen können.
 
 COMPLIANCE (zwingend, BaFin/MAR):
 - KEINE Anlageberatung, KEINE Kauf-/Verkaufsempfehlung für einzelne Wertpapiere.
@@ -53,7 +54,8 @@ Gib genau diese JSON-Struktur zurück:
   "caption": "Instagram-Caption (2-4 Zeilen) mit Disclaimer am Ende",
   "hashtags": ["#finanzen", "#aktien", "… 8-12 Stück, deutsch, reichweitenstark"]
 }}
-Die erste Slide ist der Hook, die letzte Slide der Call-to-Action. Insgesamt 5-8 Slides."""
+Die erste Slide ist der Hook, die letzte Slide die Zusammenfassung. 5-10 Slides — bei \
+detaillierten Anleitungen lieber mehr und konkreter."""
 
 
 def _sanitise(text: str) -> str:
@@ -80,7 +82,7 @@ def build_feed_post(topic_slug: str, title: str, brief: str, llm: LLMProvider) -
         try:
             raw = llm.complete(
                 system=_SYSTEM_PROMPT, user=user,
-                model=config.CLAUDE_MODEL, max_tokens=2600, purpose="feed_post",
+                model=config.CLAUDE_MODEL, max_tokens=3400, purpose="feed_post",
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"Feed-Generierung fehlgeschlagen ({exc})")
@@ -114,7 +116,7 @@ def build_feed_post(topic_slug: str, title: str, brief: str, llm: LLMProvider) -
     return FeedPost(
         topic_slug=topic_slug,
         title=_sanitise(str(data.get("title", title)).strip()) or title,
-        slides=slides[:8],
+        slides=slides[:10],
         caption=caption,
         hashtags=hashtags[:12],
     )

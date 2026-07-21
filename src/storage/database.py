@@ -118,13 +118,31 @@ _FEED_TOPIC_SEED = [
      "(2x/4x). Ampel grün/gelb/rot = bullisch/neutral/bärisch, rein beobachtend. "
      "Betone: datenbasiert, transparent, KEINE Anlageberatung."),
     ("trading-bot-claude-code",
-     "Trading-Bot mit Claude Code bauen & ans Echtgeld-Depot anschließen",
-     "Kompakte Schritt-für-Schritt-Anleitung anhand eines echten Projekts: 1) Strategie "
-     "definieren, 2) Marktdaten (z.B. yfinance), 3) Signal-Analyse mit Claude, 4) "
-     "Risk-Management (Position-Sizing, Stop-Loss, ATR-Bracket-Orders), 5) Broker per API "
-     "anbinden (Interactive Brokers), 6) ERST Paper-Trading, dann Echtgeld. Deutliche "
-     "RISIKO-WARNUNG: echtes Geld, Totalverlust möglich, keine Gewinngarantie, KEINE "
-     "Anlageberatung. Ton: motivierend aber ehrlich."),
+     "Live-Trading-Bot mit Claude Code bauen & ans Echtgeld-Depot anschließen",
+     "SEHR DETAILLIERTE, umsetzbare Schritt-für-Schritt-Anleitung (8-10 Slides), sodass "
+     "Leser einen echten Live-Trading-Bot selbst nachbauen können. Nutze diese konkreten "
+     "Bausteine eines realen Projekts, je Schritt konkret werden: "
+     "1) VORAUSSETZUNGEN: Broker mit API (z.B. Interactive Brokers), Anthropic-API-Key, "
+     "Python 3.12, Claude Code installiert, Grundkenntnisse Python. "
+     "2) PROJEKT-SETUP mit Claude Code: Repo + venv anlegen, Pakete ib_insync, yfinance, "
+     "anthropic, SQLAlchemy, loguru; Claude Code die Struktur generieren lassen. "
+     "3) STRATEGIE definieren: was wird gehandelt (US/EU-Aktien), Signalquellen, Zeithorizont, "
+     "klare Ein-/Ausstiegsregeln. "
+     "4) MARKTDATEN: Kurse & Fundamentaldaten via yfinance, Indikatoren SMA20/50, RSI, ATR "
+     "berechnen. "
+     "5) SIGNAL-ANALYSE MIT CLAUDE: Kennzahlen/News an Claude geben, strukturierte Antwort "
+     "(Ticker, Richtung, Konfidenz) als JSON; Blended-Score aus Technik + Fundamental (+ Sentiment). "
+     "6) RISK-MANAGEMENT: Position-Sizing (% des Kapitals), Stop-Loss & Take-Profit als "
+     "ATR-Bracket, max. offene Positionen, Tagesverlust-Limit (Circuit-Breaker). "
+     "7) BROKER ANBINDEN: IBKR TWS/Gateway starten, ib_insync verbindet auf Port 4002 (Paper) "
+     "bzw. 4001 (Live); OCA-Bracket-Order = Market-Entry + Stop + Take-Profit (GTC). "
+     "8) IMMER ZUERST PAPER-TRADING: Wochen testen, Expectancy prüfen, Bugs finden. "
+     "9) LIVE SCHALTEN: Port auf Live, mit KLEINEM Kapital starten. "
+     "10) BETRIEB: Trades in SQLite loggen, als systemd-Service dauerhaft laufen, Claude-Budget "
+     "deckeln. "
+     "DEUTLICHE RISIKO-WARNUNG (eigene Slide): echtes Geld, Totalverlust möglich, keine "
+     "Gewinngarantie, ein Bot ersetzt kein Fachwissen. KEINE Anlageberatung. Ton: motivierend, "
+     "ehrlich, technisch konkret."),
     ("etf-basics", "ETFs einfach erklärt: der bequeme Einstieg",
      "Was ist ein ETF, wie funktioniert Streuung, TER/Kosten, thesaurierend vs. ausschüttend, "
      "Sparplan-Idee. Einfach, edukativ, keine Empfehlung."),
