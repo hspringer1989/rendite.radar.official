@@ -75,17 +75,18 @@ def _center_wrap(draw, text: str, font, y: int, width_chars: int, fill, line_h: 
 
 def render_new_post_story(title: str, out_path: str) -> str:
     """A striking 'NEUER BEITRAG' story announcing a fresh feed carousel.
-    (Graph-API stories can't carry a tappable link, so the CTA points to the feed.)"""
+
+    Graph-API stories can't carry a tappable link/sticker, so instead of a fake button
+    we point users to the ONE tappable element Instagram itself provides: the profile
+    name at the top of the story (tapping it opens the profile → the new feed post)."""
     img, draw = _new_card()
     draw.rounded_rectangle((80, 470, W - 80, 668), radius=54, fill=_BRAND)
     _center(draw, "NEUER BEITRAG", _font(84, bold=True), 512, (255, 255, 255))
     _center(draw, "gerade im Feed erschienen", _font(40), 760, _MUTED)
     _center_wrap(draw, title, _font(58, bold=True), 860, 22, _FG, 76)
 
-    pill_w = 720
-    px, py = (W - pill_w) // 2, 1330
-    draw.rounded_rectangle((px, py, px + pill_w, py + 100), radius=50, fill=_BRAND)
-    _center(draw, "» JETZT ANSEHEN", _font(46, bold=True), py + 26, (255, 255, 255))
+    _center(draw, "Jetzt im Feed ansehen", _font(46, bold=True), 1280, _BRAND)
+    _center(draw, "tippe oben auf mein Profil", _font(34), 1352, _MUTED)
     return _save(img, out_path)
 
 
