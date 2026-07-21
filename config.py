@@ -116,6 +116,8 @@ STOCK_STORY_SLOT = _get("STOCK_STORY_SLOT", "09:00")
 FEED_POST_SLOTS = _get_list("FEED_POST_SLOTS", "TUE 17:00,THU 17:00")
 FEED_TEMPLATE_TITLE = BASE_DIR / "assets" / "templates" / "feed_bg_title.png"
 FEED_TEMPLATE_CONTENT = BASE_DIR / "assets" / "templates" / "feed_bg_content.png"
+# Auto-post a "New Post" announcement story whenever a feed carousel is published.
+FEED_ANNOUNCE_STORY = _get("FEED_ANNOUNCE_STORY", "true").lower() == "true"
 # Story POSTING slots (local TIMEZONE). Earnings + watchlist-overview go out in the
 # morning; candidate cards are spread over the day at their market's trading hours
 # (US cash session ≈ 15:30–22:00 Berlin, EU ≈ 09:00–17:30 Berlin). One story per slot.

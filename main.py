@@ -83,9 +83,7 @@ def cmd_feedpost() -> None:
 
 
 def cmd_post_feed(post_id: int) -> None:
-    import json
-
-    from src.publish.instagram import publish_feed_post
+    from src.feedposts.pipeline import publish_feed_post_by_id
 
     with session_scope() as session:
         post = session.get(FeedPostRow, post_id)
@@ -93,14 +91,10 @@ def cmd_post_feed(post_id: int) -> None:
             raise SystemExit(f"Feed-Post #{post_id} existiert nicht")
         if post.status not in ("approved", "pending_review"):
             raise SystemExit(f"Feed-Post #{post_id} hat Status '{post.status}' — nicht postbar")
-        image_paths, caption = json.loads(post.image_paths_json), post.caption
-    media_id = asyncio.run(publish_feed_post(image_paths, caption))
-    with session_scope() as session:
-        row = session.get(FeedPostRow, post_id)
-        row.status = "published"
-        row.ig_media_id = media_id
-        row.published_at = datetime.now(timezone.utc).isoformat()
-    print(f"Feed-Post #{post_id} veröffentlicht (IG media id {media_id})")
+    result = asyncio.run(publish_feed_post_by_id(post_id))
+    if result is None:
+        raise SystemExit(f"Feed-Post #{post_id} konnte nicht gepostet werden (siehe Logs)")
+    print(f"Feed-Post #{post_id} veröffentlicht (+ New-Post-Story).")
 
 
 def cmd_verify_ig() -> None:

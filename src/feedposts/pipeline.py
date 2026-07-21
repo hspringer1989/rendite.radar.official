@@ -90,18 +90,45 @@ async def send_feed_for_review(post_id: int) -> None:
     await send_feed_review_prompt(post_id, title, caption)
 
 
-async def publish_next_feed_post(trade_date: str | None = None) -> int | None:
-    """Publish the oldest approved feed post as a carousel; record failure, don't raise."""
+async def announce_new_feed_post(post_id: int, title: str) -> str | None:
+    """Auto-post a striking 'NEUER BEITRAG' story after a feed carousel goes live.
+    Best-effort: an announcement failure never affects the feed post itself."""
+    if not config.FEED_ANNOUNCE_STORY:
+        return None
+    from src.publish.instagram import publish_story, publishing_configured
+    from src.stocks.story_cards import render_new_post_story
+    from src.storage.database import StoryRow
+
+    if not publishing_configured():
+        return None
+    day = datetime.now(ZoneInfo(config.TIMEZONE))
+    path = render_new_post_story(title, str(config.STORY_DIR / f"announce_{post_id}_{_stamp()}.jpg"))
+    try:
+        media_id = await publish_story(path)
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"New-Post-Story fehlgeschlagen: {exc}")
+        return None
+    with session_scope() as session:
+        session.add(StoryRow(
+            kind="announce", trade_date=day.strftime("%Y-%m-%d"), image_path=path,
+            caption=f"Neuer Beitrag: {title}", status="published", ig_media_id=media_id,
+            published_at=datetime.now(timezone.utc).isoformat(),
+        ))
+    logger.info(f"New-Post-Story gepostet (IG media id {media_id})")
+    return media_id
+
+
+async def publish_feed_post_by_id(post_id: int) -> int | None:
+    """Publish a specific feed post as a carousel, then auto-announce it via a story.
+    Records failure, doesn't raise."""
     from src.publish.instagram import publish_feed_post
 
     with session_scope() as session:
-        row = session.execute(
-            select(FeedPostRow).where(FeedPostRow.status == "approved").order_by(FeedPostRow.id)
-        ).scalars().first()
-        data = (row.id, json.loads(row.image_paths_json), row.caption) if row else None
+        row = session.get(FeedPostRow, post_id)
+        data = (json.loads(row.image_paths_json), row.caption, row.title) if row else None
     if data is None:
         return None
-    post_id, image_paths, caption = data
+    image_paths, caption, title = data
 
     try:
         media_id = await publish_feed_post(image_paths, caption)
@@ -119,4 +146,15 @@ async def publish_next_feed_post(trade_date: str | None = None) -> int | None:
         r.ig_media_id = media_id
         r.published_at = datetime.now(timezone.utc).isoformat()
     logger.info(f"Feed-Post #{post_id} veröffentlicht (IG media id {media_id})")
+    await announce_new_feed_post(post_id, title)
     return post_id
+
+
+async def publish_next_feed_post(trade_date: str | None = None) -> int | None:
+    """Publish the oldest approved feed post (+ its announcement story)."""
+    with session_scope() as session:
+        row = session.execute(
+            select(FeedPostRow).where(FeedPostRow.status == "approved").order_by(FeedPostRow.id)
+        ).scalars().first()
+        pid = row.id if row else None
+    return await publish_feed_post_by_id(pid) if pid is not None else None

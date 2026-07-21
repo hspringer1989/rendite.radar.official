@@ -98,3 +98,53 @@ async def test_publish_next_feed_post_marks_published(monkeypatch):
 async def test_publish_feed_requires_config():
     with pytest.raises(instagram.PublishError):
         await instagram.publish_feed_post(["a.jpg"], "caption")
+
+
+# ── announcement story ─────────────────────────────────────────────────────
+def _fake_publish_both(monkeypatch):
+    async def _carousel(_paths, _cap):
+        return "IG_FEED"
+
+    async def _story(_path):
+        return "IG_STORY"
+    monkeypatch.setattr(instagram, "publish_feed_post", _carousel)
+    monkeypatch.setattr(instagram, "publish_story", _story)
+    monkeypatch.setattr(instagram, "publishing_configured", lambda: True)
+
+
+async def test_publishing_a_feed_post_auto_announces(monkeypatch):
+    pytest.importorskip("PIL")
+    import config
+    from src.feedposts.pipeline import publish_feed_post_by_id
+    from src.storage.database import StoryRow
+
+    monkeypatch.setattr(config, "FEED_ANNOUNCE_STORY", True)
+    _fake_publish_both(monkeypatch)
+    pid = _make_post(status="approved")
+    with session_scope() as session:
+        session.get(FeedPostRow, pid).title = "Mein Beitrag"
+
+    assert await publish_feed_post_by_id(pid) == pid
+    with session_scope() as session:
+        assert session.get(FeedPostRow, pid).status == "published"
+        announce = session.execute(
+            select(StoryRow).where(StoryRow.kind == "announce")
+        ).scalars().all()
+        assert len(announce) == 1
+        assert announce[0].ig_media_id == "IG_STORY"
+
+
+async def test_announcement_can_be_disabled(monkeypatch):
+    pytest.importorskip("PIL")
+    import config
+    from src.feedposts.pipeline import publish_feed_post_by_id
+    from src.storage.database import StoryRow
+
+    monkeypatch.setattr(config, "FEED_ANNOUNCE_STORY", False)
+    _fake_publish_both(monkeypatch)
+    pid = _make_post(status="approved")
+    assert await publish_feed_post_by_id(pid) == pid
+    with session_scope() as session:
+        assert session.execute(
+            select(StoryRow).where(StoryRow.kind == "announce")
+        ).scalars().first() is None

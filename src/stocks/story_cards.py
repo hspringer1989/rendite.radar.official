@@ -61,6 +61,35 @@ def _wrap(draw, text: str, font, x: int, y: int, width_chars: int, fill, line_h:
     return y
 
 
+def _center(draw, text: str, font, y: int, fill) -> None:
+    w = draw.textlength(text, font=font)
+    draw.text(((W - w) / 2, y), text, font=font, fill=fill)
+
+
+def _center_wrap(draw, text: str, font, y: int, width_chars: int, fill, line_h: int) -> int:
+    for line in branding.wrap_lines(text, width_chars):
+        w = draw.textlength(line, font=font)
+        draw.text(((W - w) / 2, y), line, font=font, fill=fill)
+        y += line_h
+    return y
+
+
+def render_new_post_story(title: str, out_path: str) -> str:
+    """A striking 'NEUER BEITRAG' story announcing a fresh feed carousel.
+    (Graph-API stories can't carry a tappable link, so the CTA points to the feed.)"""
+    img, draw = _new_card()
+    draw.rounded_rectangle((80, 470, W - 80, 668), radius=54, fill=_BRAND)
+    _center(draw, "NEUER BEITRAG", _font(84, bold=True), 512, (255, 255, 255))
+    _center(draw, "gerade im Feed erschienen", _font(40), 760, _MUTED)
+    _center_wrap(draw, title, _font(58, bold=True), 860, 22, _FG, 76)
+
+    pill_w = 720
+    px, py = (W - pill_w) // 2, 1330
+    draw.rounded_rectangle((px, py, px + pill_w, py + 100), radius=50, fill=_BRAND)
+    _center(draw, "» JETZT ANSEHEN", _font(46, bold=True), py + 26, (255, 255, 255))
+    return _save(img, out_path)
+
+
 def _save(img, out_path: str) -> str:
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     img.save(out_path, "JPEG", quality=90)
