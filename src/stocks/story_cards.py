@@ -38,11 +38,10 @@ _market_badge = branding.market_badge
 def _new_card():
     from PIL import Image, ImageDraw
 
+    # No brand header at the top: Instagram overlays the profile name (@rendite.radar.official)
+    # there in stories, so a baked-in header would collide with it.
     img = Image.new("RGB", (W, H), _BG)
     draw = ImageDraw.Draw(img)
-    draw.text((60, 66), config.BRAND_NAME, font=_font(52, bold=True), fill=_BRAND)
-    if config.BRAND_HANDLE:
-        draw.text((62, 128), config.BRAND_HANDLE, font=_font(28), fill=_MUTED)
     _footer(draw)
     return img, draw
 
