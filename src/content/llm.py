@@ -126,9 +126,13 @@ def builtin_fake() -> "FakeLLM":
                    "Keine Anlageberatung · nur Bildung.",
         "hashtags": ["#finanzen", "#aktien", "#börse", "#investieren", "#charttechnik"],
     })
+    trend_ticker = json.dumps(
+        {"ticker": "XOM", "name": "Exxon Mobil", "reason": "steht wegen Quartalszahlen im Fokus"}
+    )
     return FakeLLM({
         "score_trends": scores, "generate_script": script,
         "stock_analysis": stock_analysis, "feed_post": feed_post,
+        "trend_ticker": trend_ticker,
     })
 
 

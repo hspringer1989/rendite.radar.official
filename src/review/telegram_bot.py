@@ -151,10 +151,10 @@ def apply_story_decision(story_id: int, action: str) -> str | None:
             return None
         if story.status != "pending_review":
             return f"Story #{story_id} ist bereits '{story.status}'"
-        if story.kind == "candidate" and story.ticker:
+        if story.kind in ("candidate", "trend") and story.ticker:
             rows = session.execute(
                 select(StoryRow).where(
-                    StoryRow.kind == "candidate",
+                    StoryRow.kind == story.kind,
                     StoryRow.ticker == story.ticker,
                     StoryRow.trade_date == story.trade_date,
                     StoryRow.status == "pending_review",

@@ -163,6 +163,11 @@ def _draw_chart(draw, box, closes, stop, take, entry, currency) -> None:
 # ── Candidate cards (3 per stock) ──────────────────────────────────────────
 def _card_header(draw, c: Candidate, subtitle: str, step: str):
     m = c.metrics
+    if c.category:  # e.g. "TREND-AKTIE" — sits below IG's story profile overlay
+        label = c.category
+        w = draw.textlength(label, font=_font(30, bold=True))
+        draw.rounded_rectangle((60, 120, 60 + w + 48, 176), radius=16, fill=_BRAND)
+        draw.text((84, 130), label, font=_font(30, bold=True), fill=(255, 255, 255))
     x = _market_badge(draw, 60, 214, m.market)
     draw.text((x, 190), m.ticker, font=_font(68, bold=True), fill=_FG)
     draw.text((60, 296), f"{m.name}  ·  {m.sector}", font=_font(32), fill=_MUTED)
@@ -236,7 +241,11 @@ def render_overall_card(c: Candidate, out_path: str) -> str:
     _signal_badge(draw, 90, y + 30, c_level, f"Charttechnik — {c_label}")
     _signal_badge(draw, 90, y + 110, f_level, f"Fundamental — {f_label}")
 
-    _wrap(draw, c.overall_text, _font(38), 60, y + 260, 38, _FG, 50)
+    y += 260
+    if c.trend_reason:
+        y = _wrap(draw, f"Im Trend: {c.trend_reason}", _font(34), 60, y, 40, _BRAND, 44)
+        y += 16
+    _wrap(draw, c.overall_text, _font(38), 60, y, 38, _FG, 50)
     return _save(img, out_path)
 
 

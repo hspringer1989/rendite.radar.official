@@ -214,6 +214,24 @@ def build_candidates(
     return candidates
 
 
+def build_candidate_for_ticker(
+    md: MarketData, ticker: str, llm: LLMProvider,
+    category: str = "", trend_reason: str = "",
+) -> Candidate | None:
+    """Analyse ONE specific ticker (e.g. a news-trending stock) into a full Candidate
+    with risk marks + the three educational texts. None if it has no usable data."""
+    m = analyze_ticker(md, ticker)
+    if m is None:
+        return None
+    stop, take = ind.risk_levels(
+        m.price, m.atr, config.STOCK_ATR_STOP_MULT, config.STOCK_ATR_TP_MULT
+    )
+    candidate = Candidate(metrics=m, entry=m.price, stop_loss=stop, take_profit=take,
+                          category=category, trend_reason=trend_reason)
+    _attach_analysis([candidate], llm)
+    return candidate
+
+
 def _apply_fallback(candidates: list[Candidate]) -> None:
     for c in candidates:
         c.chart_text, c.fundamental_text, c.overall_text = _fallback_texts(c)

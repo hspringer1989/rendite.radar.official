@@ -47,7 +47,7 @@ def _recent_candidate_tickers(cooldown_days: int) -> set[str]:
     with session_scope() as session:
         rows = session.execute(
             select(StoryRow.ticker).where(
-                StoryRow.kind == "candidate",
+                StoryRow.kind.in_(("candidate", "trend")),   # both categories share the cooldown
                 StoryRow.ticker != "",
                 StoryRow.trade_date >= cutoff,
                 StoryRow.status.in_(("pending_review", "approved", "published", "rejected")),
@@ -115,19 +115,47 @@ def build_daily_stories(
     for c in candidates:
         story_ids.extend(_persist_candidate_cards(c, out_dir, trade_date))
 
+    # 4) News-driven "Trend-Aktie": one stock most in the news today (same cooldown
+    #    pool, so it never repeats a recently-shown ticker), analysed the same way.
+    if config.STOCK_TREND_ENABLED:
+        story_ids.extend(_build_trend_story(md, llm, out_dir, trade_date, exclude))
+
     logger.info(f"{len(story_ids)} Story-Cards erstellt (pending_review)")
     return story_ids
 
 
-def _persist_candidate_cards(c: Candidate, out_dir: Path, trade_date: str) -> list[int]:
-    """Render + persist the 3 cards (chart, fundamental, overall) for one candidate.
-    Supersedes any earlier same-day cards for this ticker so a re-build never stacks
-    duplicate frames onto the same story."""
+def _build_trend_story(md, llm, out_dir: Path, trade_date: str, exclude: set[str]) -> list[int]:
+    """Pick the day's news-trending stock (not in the cooldown set) and render its
+    3-card 'Trend-Aktie' story. Returns the created ids (empty if none found)."""
+    from src.stocks.analyzer import build_candidate_for_ticker
+    from src.stocks.news_trend import select_trend_ticker
+
+    pick = select_trend_ticker(md, llm, exclude)
+    if pick is None:
+        logger.info("Keine Trend-Aktie heute")
+        return []
+    ticker, _name, reason = pick
+    candidate = build_candidate_for_ticker(md, ticker, llm, category="TREND-AKTIE",
+                                           trend_reason=reason)
+    if candidate is None:
+        logger.warning(f"Trend-Aktie {ticker} konnte nicht analysiert werden")
+        return []
+    ids = _persist_candidate_cards(candidate, out_dir, trade_date, kind="trend")
+    logger.info(f"Trend-Aktien-Story erstellt: {ticker}")
+    return ids
+
+
+def _persist_candidate_cards(
+    c: Candidate, out_dir: Path, trade_date: str, kind: str = "candidate",
+) -> list[int]:
+    """Render + persist the 3 cards (chart, fundamental, overall) for one candidate/trend
+    stock. Supersedes any earlier same-day cards for this ticker+kind so a re-build never
+    stacks duplicate frames onto the same story."""
     m = c.metrics
     with session_scope() as session:
         prior = session.execute(
             select(StoryRow).where(
-                StoryRow.kind == "candidate", StoryRow.ticker == m.ticker,
+                StoryRow.kind == kind, StoryRow.ticker == m.ticker,
                 StoryRow.trade_date == trade_date,
                 StoryRow.status.in_(("pending_review", "approved")),
             )
@@ -135,9 +163,10 @@ def _persist_candidate_cards(c: Candidate, out_dir: Path, trade_date: str) -> li
         for row in prior:
             row.status = "superseded"
         if prior:
-            logger.info(f"{m.ticker}: {len(prior)} ältere Card(s) verworfen (superseded)")
+            logger.info(f"{m.ticker} ({kind}): {len(prior)} ältere Card(s) verworfen")
 
     stamp = _stamp()
+    lead = "🔥 Trend-Aktie" if kind == "trend" else f"{m.ticker} · {m.sector}"
     parts = [
         ("chart", render_chart_card, "Charttechnik"),
         ("fundamental", render_fundamental_card, "Fundamental"),
@@ -145,9 +174,9 @@ def _persist_candidate_cards(c: Candidate, out_dir: Path, trade_date: str) -> li
     ]
     ids: list[int] = []
     for part, render, label in parts:
-        path = render(c, str(out_dir / f"cand_{m.ticker}_{part}_{stamp}.jpg"))
-        caption = f"{m.ticker} · {m.sector} — {label}\n\n{_DISCLAIMER}"
-        ids.append(_persist("candidate", path, caption, trade_date,
+        path = render(c, str(out_dir / f"{kind}_{m.ticker}_{part}_{stamp}.jpg"))
+        caption = f"{lead} — {m.ticker} · {label}\n\n{_DISCLAIMER}"
+        ids.append(_persist(kind, path, caption, trade_date,
                             ticker=m.ticker, market=m.market, part=part,
                             analysis=asdict(c) if part == "overall" else None))
     return ids
@@ -205,15 +234,15 @@ _PART_ORDER = {"chart": 0, "fundamental": 1, "overall": 2}
 
 
 async def publish_next_candidate_group(
-    market: str | None = None, trade_date: str | None = None
+    market: str | None = None, trade_date: str | None = None, kind: str = "candidate",
 ) -> list[int]:
-    """Publish all approved cards of the NEXT candidate ticker (chart → fundamental →
-    overall) for today+market as a story sequence. Returns the posted ids."""
+    """Publish all approved cards of the NEXT candidate/trend ticker (chart → fundamental
+    → overall) for today+market as a story sequence. Returns the posted ids."""
     trade_date = trade_date or _today_local().strftime("%Y-%m-%d")
     with session_scope() as session:
         query = select(StoryRow).where(
             StoryRow.status == "approved", StoryRow.trade_date == trade_date,
-            StoryRow.kind == "candidate",
+            StoryRow.kind == kind,
         )
         if market:
             query = query.where(StoryRow.market == market)
@@ -257,7 +286,7 @@ async def send_stories_for_review(story_ids: list[int]) -> None:
         if data is None:
             continue
         kind, part, image_path, caption = data
-        if kind == "candidate" and part in ("chart", "fundamental"):
+        if kind in ("candidate", "trend") and part in ("chart", "fundamental"):
             await send_photo_plain(image_path, caption)
         else:
             await send_photo_for_review(sid, image_path, caption)

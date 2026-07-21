@@ -297,9 +297,14 @@ async def _run_loop() -> None:
                     if hhmm in slots and key not in done_slots:
                         done_slots.add(key)
                         posted = await publish_next_candidate_group(market=market)
+                        trend = await publish_next_candidate_group(market=market, kind="trend")
                         if posted and review_configured():
                             await send_text(
                                 f"📤 Kandidaten-Story ({market}, {len(posted)} Cards) gepostet."
+                            )
+                        if trend and review_configured():
+                            await send_text(
+                                f"📤 Trend-Aktien-Story ({market}, {len(trend)} Cards) gepostet."
                             )
 
             # 5) feed posts (2×/week): generate on a feed-slot day at the morning build

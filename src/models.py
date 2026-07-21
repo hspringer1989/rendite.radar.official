@@ -137,3 +137,5 @@ class Candidate:
     chart_text: str = ""         # what the chart shows
     fundamental_text: str = ""   # what the fundamentals show
     overall_text: str = ""       # the combined picture
+    category: str = ""           # optional label, e.g. "TREND-AKTIE" (news-driven pick)
+    trend_reason: str = ""       # one-line why this stock is trending (news)
