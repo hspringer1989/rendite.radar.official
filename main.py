@@ -4,6 +4,7 @@
   python main.py generate           # produce one reel end-to-end → review queue
   python main.py stocks             # build today's earnings + watchlist stories → review
   python main.py feedpost           # generate the next educational feed carousel → review
+  python main.py dividendpost       # build the monthly-dividend post (yield + 2 lights) → review
   python main.py verify-ig          # read-only check of the IG token/account/permissions
   python main.py run                # scheduler loop: review bot + slots + insights
   python main.py publish --reel 3   # manually publish a specific reel
@@ -80,6 +81,22 @@ def cmd_feedpost() -> None:
     if pid is None:
         raise SystemExit("Kein Feed-Beitrag erstellt (Queue leer oder Generierung fehlgeschlagen)")
     print(f"Feed-Beitrag #{pid} erstellt und in die Review-Queue gestellt.")
+
+
+def cmd_dividendpost() -> None:
+    from src.feedposts.dividend import build_dividend_post
+    from src.feedposts.pipeline import send_feed_for_review
+
+    async def _run() -> int | None:
+        pid = await asyncio.to_thread(build_dividend_post)
+        if pid is not None:
+            await send_feed_for_review(pid)
+        return pid
+
+    pid = asyncio.run(_run())
+    if pid is None:
+        raise SystemExit("Dividenden-Post konnte nicht erstellt werden (zu wenige Daten)")
+    print(f"Dividenden-Post #{pid} erstellt und in die Review-Queue gestellt.")
 
 
 def cmd_post_feed(post_id: int) -> None:
@@ -366,6 +383,7 @@ def main() -> None:
     sub.add_parser("generate")
     sub.add_parser("stocks")
     sub.add_parser("feedpost")
+    sub.add_parser("dividendpost")
     sub.add_parser("verify-ig")
     sub.add_parser("run")
     sub.add_parser("status")
@@ -386,6 +404,8 @@ def main() -> None:
         cmd_stocks()
     elif args.command == "feedpost":
         cmd_feedpost()
+    elif args.command == "dividendpost":
+        cmd_dividendpost()
     elif args.command == "verify-ig":
         cmd_verify_ig()
     elif args.command == "run":

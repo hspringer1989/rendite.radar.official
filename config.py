@@ -104,6 +104,12 @@ STOCK_CANDIDATES_COUNT = int(_get("STOCK_CANDIDATES_COUNT", "4"))
 STOCK_REPEAT_COOLDOWN_DAYS = int(_get("STOCK_REPEAT_COOLDOWN_DAYS", "30"))
 # Daily news-driven "Trend-Aktie" story (one stock most in the news, same cooldown pool).
 STOCK_TREND_ENABLED = _get("STOCK_TREND_ENABLED", "true").lower() == "true"
+
+# Curated monthly-dividend payers for the "Regelmäßige Dividende" feed post.
+DIVIDEND_MONTHLY_TICKERS = _get_list(
+    "DIVIDEND_MONTHLY_TICKERS",
+    "O,MAIN,STAG,ADC,LTC,EPR,GOOD,GAIN,PECO,WSR,AGNC,APLE,PSEC,GWRS",
+)
 # Blended factor weights (no sentiment): tech + fund should sum to 1.0.
 STOCK_W_TECH = float(_get("STOCK_W_TECH", "0.5"))
 STOCK_W_FUND = float(_get("STOCK_W_FUND", "0.5"))

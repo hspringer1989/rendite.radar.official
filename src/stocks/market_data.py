@@ -47,15 +47,15 @@ def _synthetic_bars(base: float, trend: float, n: int = 80) -> dict[str, list[fl
 
 _FAKE_UNIVERSE = {
     "AAPL": ("Apple Inc.", "Technology", "USD", "US", 180.0, 0.4,
-             {"pe": 28.0, "revenue_growth": 0.08, "profit_margin": 0.25}),
+             {"pe": 28.0, "revenue_growth": 0.08, "profit_margin": 0.25, "dividend_yield": 0.005}),
     "JPM": ("JPMorgan Chase", "Financial Services", "USD", "US", 150.0, 0.5,
-            {"pe": 11.0, "revenue_growth": 0.15, "profit_margin": 0.32}),
+            {"pe": 11.0, "revenue_growth": 0.15, "profit_margin": 0.32, "dividend_yield": 0.024}),
     "XOM": ("Exxon Mobil", "Energy", "USD", "US", 105.0, 0.2,
-            {"pe": 12.0, "revenue_growth": 0.05, "profit_margin": 0.11}),
+            {"pe": 12.0, "revenue_growth": 0.05, "profit_margin": 0.11, "dividend_yield": 0.035}),
     "SAP.DE": ("SAP SE", "Technology", "EUR", "EU", 145.0, 0.6,
-               {"pe": 24.0, "revenue_growth": 0.10, "profit_margin": 0.18}),
+               {"pe": 24.0, "revenue_growth": 0.10, "profit_margin": 0.18, "dividend_yield": 0.012}),
     "ALV.DE": ("Allianz SE", "Financial Services", "EUR", "EU", 240.0, 0.3,
-               {"pe": 12.0, "revenue_growth": 0.06, "profit_margin": 0.09}),
+               {"pe": 12.0, "revenue_growth": 0.06, "profit_margin": 0.09, "dividend_yield": 0.05}),
 }
 
 
@@ -74,7 +74,8 @@ class FakeMarketData(MarketData):
 
     def fundamentals(self, ticker: str) -> dict:
         row = _FAKE_UNIVERSE.get(ticker)
-        return dict(row[6]) if row else {"pe": None, "revenue_growth": None, "profit_margin": None}
+        return dict(row[6]) if row else {
+            "pe": None, "revenue_growth": None, "profit_margin": None, "dividend_yield": None}
 
 
 class FakeEarningsCalendar(EarningsCalendar):
@@ -138,6 +139,7 @@ class YFinanceMarketData(MarketData):
             "pe": raw.get("trailingPE"),
             "revenue_growth": raw.get("revenueGrowth"),
             "profit_margin": raw.get("profitMargins"),
+            "dividend_yield": raw.get("dividendYield"),
         }
 
 

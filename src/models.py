@@ -97,6 +97,7 @@ class StockMetrics:
     pe: float | None = None
     revenue_growth: float | None = None   # fraction, e.g. 0.18 = +18 %
     profit_margin: float | None = None     # fraction
+    dividend_yield: float | None = None    # yfinance dividendYield (fraction or %, normalise on use)
     history_closes: list[float] = field(default_factory=list)  # recent closes for the chart
 
     @property
