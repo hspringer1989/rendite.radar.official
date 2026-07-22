@@ -46,15 +46,16 @@ def _counter(draw, index: int, total: int) -> None:
 
 
 def _follow_button(draw, x: int, y: int) -> int:
-    """Punchy blue 'FOLGEN' pill + handle to make the call-to-action pop."""
-    label = "JETZT FOLGEN  »"
-    font = branding.load_font(42, bold=True)
-    pill = (x, y, x + 560, y + 92)
-    draw.rounded_rectangle(pill, radius=46, fill=branding.BLUE)
-    draw.text((x + 40, y + 22), label, font=font, fill=(255, 255, 255))
-    draw.text((x + 6, y + 116), config.BRAND_HANDLE, font=branding.load_font(36, bold=True),
+    """Honest follow cue (NOT a fake button): feed-post images can't carry a tappable
+    link, so we point to the real follow paths — the @handle (tappable in the caption)
+    and Instagram's own Folgen button at the top of the post."""
+    draw.text((x, y), "Folge für mehr Analysen", font=branding.load_font(46, bold=True),
+              fill=branding.BLUE)
+    draw.text((x, y + 66), config.BRAND_HANDLE, font=branding.load_font(38, bold=True),
               fill=branding.BLUE_LIGHT)
-    return y + 92 + 116
+    draw.text((x, y + 126), "» Folgen-Button oben antippen", font=branding.load_font(28),
+              fill=branding.MUTED)
+    return y + 126 + 40
 
 
 def _render_hero(slide: Slide, index: int, total: int, is_cta: bool, out_path: str) -> str:
@@ -69,7 +70,7 @@ def _render_hero(slide: Slide, index: int, total: int, is_cta: bool, out_path: s
     pad = 56
     content_h = len(h_lines) * h_lh + 22 + len(b_lines) * b_lh
     if is_cta:
-        content_h += 40 + 208 + 34    # follow button + handle + disclaimer
+        content_h += 40 + 166 + 34    # follow cue (heading + handle + hint) + disclaimer
     panel_h = content_h + 2 * pad
     top, bottom = 165, H - 175                   # keep clear of counter + template logo
     avail = bottom - top

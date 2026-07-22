@@ -140,6 +140,7 @@ def build_dividend_post(md: MarketData | None = None, llm: LLMProvider | None = 
         "Jeden Monat Dividende 📅 — Monatszahler für regelmäßigen Cashflow, mit unserem "
         "Ampel-Check aus Charttechnik & Fundamental.\n\n"
         "Welcher Monatszahler fehlt? Schreib's in die Kommentare!\n\n"
+        f"Folge {config.BRAND_HANDLE} für mehr 📈\n\n"
         "⚠️ Keine Anlageberatung · nur Bildung & Unterhaltung · Werbung\n"
         "#dividende #passiveseinkommen #aktien #cashflow #monatszahler #finanzen #börse #reit"
     )

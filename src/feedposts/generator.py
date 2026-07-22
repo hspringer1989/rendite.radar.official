@@ -105,6 +105,10 @@ def build_feed_post(topic_slug: str, title: str, brief: str, llm: LLMProvider) -
         return None
 
     caption = _sanitise(str(data.get("caption", "")).strip())
+    # A tappable @mention of our own profile — the real "link" to follow (feed-post
+    # images can't carry a clickable button).
+    if config.BRAND_HANDLE and config.BRAND_HANDLE.lower() not in caption.lower():
+        caption = f"{caption}\n\nFolge {config.BRAND_HANDLE} für mehr 📈".strip()
     if "anlageberatung" not in caption.lower():
         caption = f"{caption}\n\n⚠️ {_DISCLAIMER}".strip()
 
