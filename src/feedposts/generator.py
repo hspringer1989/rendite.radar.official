@@ -37,6 +37,9 @@ COMPLIANCE (zwingend, BaFin/MAR):
 und Verlustmöglichkeit hinweisen.
 - Sachlich, edukativ ("So funktioniert…"), nicht direktiv.
 
+SPRACHE: Verwende korrekte deutsche Umlaute (ä, ö, ü, ß) — NIEMALS Ersatzschreibweisen wie \
+ae, ue, oe, ss (auch dann nicht, wenn im Auftrag/Brief ASCII-Schreibweisen stehen).
+
 WICHTIG für gültiges JSON: in Textwerten KEINE doppelten Anführungszeichen (") und keine \
 Zeilenumbrüche. Antworte AUSSCHLIESSLICH mit gültigem JSON, keine Markdown-Umrandung."""
 
