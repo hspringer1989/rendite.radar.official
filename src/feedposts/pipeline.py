@@ -151,10 +151,31 @@ async def publish_feed_post_by_id(post_id: int) -> int | None:
 
 
 async def publish_next_feed_post(trade_date: str | None = None) -> int | None:
-    """Publish the oldest approved feed post (+ its announcement story)."""
+    """Publish the oldest approved UNSCHEDULED feed post (+ its announcement story).
+    Time-scheduled posts (scheduled_at set) are handled separately by the scheduler."""
     with session_scope() as session:
         row = session.execute(
-            select(FeedPostRow).where(FeedPostRow.status == "approved").order_by(FeedPostRow.id)
+            select(FeedPostRow).where(
+                FeedPostRow.status == "approved", FeedPostRow.scheduled_at == ""
+            ).order_by(FeedPostRow.id)
         ).scalars().first()
         pid = row.id if row else None
     return await publish_feed_post_by_id(pid) if pid is not None else None
+
+
+async def publish_due_scheduled_feed_posts(now_local: str) -> list[int]:
+    """Publish approved feed posts whose scheduled_at has arrived (now_local as
+    'YYYY-MM-DD HH:MM'). Returns the posted ids."""
+    with session_scope() as session:
+        due = session.execute(
+            select(FeedPostRow.id).where(
+                FeedPostRow.status == "approved",
+                FeedPostRow.scheduled_at != "",
+                FeedPostRow.scheduled_at <= now_local,
+            ).order_by(FeedPostRow.scheduled_at)
+        ).scalars().all()
+    posted: list[int] = []
+    for pid in due:
+        if await publish_feed_post_by_id(pid) is not None:
+            posted.append(pid)
+    return posted

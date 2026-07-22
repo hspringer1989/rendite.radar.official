@@ -234,6 +234,7 @@ async def _run_loop() -> None:
     from src.review.telegram_bot import build_application, review_configured, send_text
     from src.feedposts.pipeline import (
         build_next_feed_post,
+        publish_due_scheduled_feed_posts,
         publish_next_feed_post,
         send_feed_for_review,
     )
@@ -349,6 +350,11 @@ async def _run_loop() -> None:
                         pid = await publish_next_feed_post()
                         if pid and review_configured():
                             await send_text(f"📤 Feed-Beitrag #{pid} wurde gepostet.")
+
+                # time-scheduled feed posts whose moment has arrived
+                for pid in await publish_due_scheduled_feed_posts(now.strftime("%Y-%m-%d %H:%M")):
+                    if review_configured():
+                        await send_text(f"📤 Geplanter Feed-Beitrag #{pid} wurde gepostet.")
 
             # 6) daily insights
             if now.strftime("%H:%M") == _INSIGHTS_SLOT and (slot_key[0], "insights") not in done_slots:

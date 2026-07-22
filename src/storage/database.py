@@ -104,6 +104,7 @@ class FeedPostRow(Base):
     status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
     error: Mapped[str] = mapped_column(Text, default="")
     ig_media_id: Mapped[str] = mapped_column(String(64), default="")
+    scheduled_at: Mapped[str] = mapped_column(String(20), default="", index=True)  # local "YYYY-MM-DD HH:MM"
     created_at: Mapped[str] = mapped_column(String(40), default=_utcnow)
     published_at: Mapped[str] = mapped_column(String(40), default="")
 
@@ -201,9 +202,12 @@ _session_factory = None
 def _migrate(engine) -> None:
     """Lightweight additive migrations for SQLite (create_all never ALTERs)."""
     with engine.begin() as conn:
-        cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(stories)").fetchall()}
-        if cols and "part" not in cols:
+        story_cols = {r[1] for r in conn.exec_driver_sql("PRAGMA table_info(stories)").fetchall()}
+        if story_cols and "part" not in story_cols:
             conn.exec_driver_sql("ALTER TABLE stories ADD COLUMN part VARCHAR(12) DEFAULT ''")
+        feed_cols = {r[1] for r in conn.exec_driver_sql("PRAGMA table_info(feed_posts)").fetchall()}
+        if feed_cols and "scheduled_at" not in feed_cols:
+            conn.exec_driver_sql("ALTER TABLE feed_posts ADD COLUMN scheduled_at VARCHAR(20) DEFAULT ''")
 
 
 def _seed_feed_topics(session_factory) -> None:

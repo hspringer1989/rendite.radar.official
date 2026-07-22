@@ -62,11 +62,11 @@ def test_build_next_feed_post_creates_row_and_uses_topic():
 
 
 # ── review decision ────────────────────────────────────────────────────────
-def _make_post(status: str = "pending_review", paths=None) -> int:
+def _make_post(status: str = "pending_review", paths=None, scheduled_at: str = "") -> int:
     with session_scope() as session:
         row = FeedPostRow(status=status,
                           image_paths_json=json.dumps(paths or ["a.jpg", "b.jpg"]),
-                          caption="Caption")
+                          caption="Caption", scheduled_at=scheduled_at)
         session.add(row)
         session.flush()
         return row.id
@@ -132,6 +132,24 @@ async def test_publishing_a_feed_post_auto_announces(monkeypatch):
         ).scalars().all()
         assert len(announce) == 1
         assert announce[0].ig_media_id == "IG_STORY"
+
+
+async def test_scheduled_post_skipped_by_next(monkeypatch):
+    _fake_publish_both(monkeypatch)
+    from src.feedposts.pipeline import publish_next_feed_post
+
+    _make_post(status="approved", scheduled_at="2030-01-01 10:00")
+    assert await publish_next_feed_post() is None   # scheduled posts aren't posted early
+
+
+async def test_due_scheduled_posts_only(monkeypatch):
+    _fake_publish_both(monkeypatch)
+    from src.feedposts.pipeline import publish_due_scheduled_feed_posts
+
+    due = _make_post(status="approved", scheduled_at="2020-01-01 09:00")
+    _make_post(status="approved", scheduled_at="2030-01-01 09:00")   # future, not yet
+    posted = await publish_due_scheduled_feed_posts("2025-06-01 12:00")
+    assert posted == [due]
 
 
 async def test_announcement_can_be_disabled(monkeypatch):

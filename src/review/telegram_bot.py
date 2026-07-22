@@ -216,17 +216,27 @@ async def _on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             text=f"{msg.text or ''}\n\n{note}"[:4096], reply_markup=None
         )
 
-    # Feed posts publish IMMEDIATELY on approval (no waiting for the slot), incl. the
-    # "NEUER BEITRAG" announcement story.
+    # On approval a feed post publishes IMMEDIATELY (+ announcement story) — UNLESS it has
+    # a future scheduled_at, in which case the scheduler posts it at that time.
     if kind == "feed" and action == "approve" and ack and "bereits" not in ack:
-        from src.feedposts.pipeline import publish_feed_post_by_id
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
 
-        posted = await publish_feed_post_by_id(item_id)
-        await send_text(
-            f"📤 Feed-Beitrag #{item_id} wurde gepostet (+ Ankündigungs-Story)."
-            if posted else
-            f"⚠️ Feed-Beitrag #{item_id} konnte nicht gepostet werden (siehe Logs)."
-        )
+        now_local = datetime.now(ZoneInfo(config.TIMEZONE)).strftime("%Y-%m-%d %H:%M")
+        with session_scope() as session:
+            post = session.get(FeedPostRow, item_id)
+            scheduled = post.scheduled_at if post else ""
+        if scheduled and scheduled > now_local:
+            await send_text(f"🕒 Feed-Beitrag #{item_id} freigegeben — wird am {scheduled} Uhr gepostet.")
+        else:
+            from src.feedposts.pipeline import publish_feed_post_by_id
+
+            posted = await publish_feed_post_by_id(item_id)
+            await send_text(
+                f"📤 Feed-Beitrag #{item_id} wurde gepostet (+ Ankündigungs-Story)."
+                if posted else
+                f"⚠️ Feed-Beitrag #{item_id} konnte nicht gepostet werden (siehe Logs)."
+            )
 
 
 def build_application() -> Application:
