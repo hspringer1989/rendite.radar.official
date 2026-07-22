@@ -356,6 +356,15 @@ async def _run_loop() -> None:
                     if review_configured():
                         await send_text(f"📤 Geplanter Feed-Beitrag #{pid} wurde gepostet.")
 
+            # 5b) weekly editorial reminder + auto topic proposal (Sunday)
+            if (now.weekday() == _WEEKDAYS.get(config.FEED_EDITORIAL_DAY.upper(), 6)
+                    and hhmm == config.FEED_EDITORIAL_TIME
+                    and (slot_key[0], "editorial") not in done_slots):
+                done_slots.add((slot_key[0], "editorial"))
+                from src.feedposts.editorial import send_editorial_reminder
+
+                await send_editorial_reminder()
+
             # 6) daily insights
             if now.strftime("%H:%M") == _INSIGHTS_SLOT and (slot_key[0], "insights") not in done_slots:
                 done_slots.add((slot_key[0], "insights"))

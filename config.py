@@ -124,6 +124,14 @@ STOCK_STORY_SLOT = _get("STOCK_STORY_SLOT", "09:00")
 FEED_POST_SLOTS = _get_list("FEED_POST_SLOTS", "TUE 17:00,THU 17:00")
 FEED_TEMPLATE_TITLE = BASE_DIR / "assets" / "templates" / "feed_bg_title.png"
 FEED_TEMPLATE_CONTENT = BASE_DIR / "assets" / "templates" / "feed_bg_content.png"
+
+# ── Weekly editorial workflow ──────────────────────────────────────────────
+# Once a week we plan + create the coming week's posts together (Redaktionssitzung);
+# they publish at one fixed daily slot across Mon–Sun.
+FEED_EDITORIAL_DAY = _get("FEED_EDITORIAL_DAY", "SUN")     # MON..SUN
+FEED_EDITORIAL_TIME = _get("FEED_EDITORIAL_TIME", "11:00")  # when the reminder+proposal is sent
+FEED_DAILY_POST_TIME = _get("FEED_DAILY_POST_TIME", "17:00")  # daily posting slot
+FEED_WEEKLY_POSTS = int(_get("FEED_WEEKLY_POSTS", "7"))       # posts per week (Mon–Sun = 7)
 # Auto-post a "New Post" announcement story whenever a feed carousel is published.
 FEED_ANNOUNCE_STORY = _get("FEED_ANNOUNCE_STORY", "true").lower() == "true"
 # Story POSTING slots (local TIMEZONE). Earnings + watchlist-overview go out in the

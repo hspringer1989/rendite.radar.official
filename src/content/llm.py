@@ -129,10 +129,14 @@ def builtin_fake() -> "FakeLLM":
     trend_ticker = json.dumps(
         {"ticker": "XOM", "name": "Exxon Mobil", "reason": "steht wegen Quartalszahlen im Fokus"}
     )
+    week_plan = json.dumps({"topics": [
+        {"slug": f"thema-{i}", "title": f"Beispiel-Thema {i}", "brief": "Kurzer Brief mit Entscheidungslogik."}
+        for i in range(1, 8)
+    ]})
     return FakeLLM({
         "score_trends": scores, "generate_script": script,
         "stock_analysis": stock_analysis, "feed_post": feed_post,
-        "trend_ticker": trend_ticker,
+        "trend_ticker": trend_ticker, "week_plan": week_plan,
     })
 
 
