@@ -40,11 +40,12 @@ class DivRow:
 
 
 def _norm_yield(v: float | None) -> float | None:
-    """yfinance returns dividendYield as a fraction (0.055) on some versions and as a
-    percent (5.5) on others — normalise to a percent number."""
+    """Current yfinance returns dividendYield already as a PERCENT (0.91 = 0.91%, 5.5 =
+    5.5%) — so no ×100. Implausible values (bad data, e.g. 73) are dropped to None."""
     if v is None:
         return None
-    return round(v * 100, 1) if v <= 1 else round(v, 1)
+    v = round(float(v), 1)
+    return v if 0 < v <= 30 else None
 
 
 def build_dividend_rows(md: MarketData, tickers: list[str] | None = None) -> list[DivRow]:

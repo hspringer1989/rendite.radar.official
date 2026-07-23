@@ -14,8 +14,10 @@ _FAKE = ["AAPL", "JPM", "XOM", "SAP.DE", "ALV.DE"]
 
 def test_norm_yield():
     assert _norm_yield(None) is None
-    assert _norm_yield(0.05) == 5.0      # fraction → percent
-    assert _norm_yield(13.0) == 13.0     # already a percent
+    assert _norm_yield(0.9) == 0.9       # yfinance returns percent already (no ×100)
+    assert _norm_yield(13.0) == 13.0
+    assert _norm_yield(73.0) is None     # implausible / bad data → dropped
+    assert _norm_yield(0) is None
 
 
 def test_build_dividend_rows_sorted_by_yield(monkeypatch):
