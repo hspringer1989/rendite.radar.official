@@ -21,7 +21,8 @@ def fetch_photo(query: str, out_path: str) -> str | None:
     if not url:
         return None
     try:
-        data = httpx.get(url, timeout=40.0, follow_redirects=True)
+        data = httpx.get(url, timeout=40.0, follow_redirects=True,
+                         headers={"User-Agent": "renditeradar/1.0 (contact: renditeradar@instagram)"})
         data.raise_for_status()
         Path(out_path).parent.mkdir(parents=True, exist_ok=True)
         Path(out_path).write_bytes(data.content)
