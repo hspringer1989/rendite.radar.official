@@ -70,7 +70,8 @@ class FakeMarketData(MarketData):
         row = _FAKE_UNIVERSE.get(ticker)
         if row is None:
             return None
-        return {"name": row[0], "sector": row[1], "currency": row[2], "market": row[3]}
+        return {"name": row[0], "sector": row[1], "currency": row[2], "market": row[3],
+                "high_52w": round(row[4] * 1.25, 2)}  # 25% above the base price
 
     def fundamentals(self, ticker: str) -> dict:
         row = _FAKE_UNIVERSE.get(ticker)
@@ -127,6 +128,7 @@ class YFinanceMarketData(MarketData):
             "sector": raw.get("sector") or "Sonstige",
             "currency": raw.get("currency") or "USD",
             "market": _market_for(ticker),
+            "high_52w": raw.get("fiftyTwoWeekHigh"),
         }
 
     def fundamentals(self, ticker: str) -> dict:

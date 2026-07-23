@@ -102,6 +102,7 @@ def analyze_ticker(md: MarketData, ticker: str) -> StockMetrics | None:
         revenue_growth=fund.get("revenue_growth"),
         profit_margin=fund.get("profit_margin"),
         dividend_yield=fund.get("dividend_yield"),
+        high_52w=info.get("high_52w"),
         history_closes=[round(c, 2) for c in closes[-90:]],
     )
 
