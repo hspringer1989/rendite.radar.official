@@ -17,7 +17,7 @@ W, H = 1080, 1350
 
 def fetch_photo(query: str, out_path: str) -> str | None:
     """Download one landscape/large topic photo → out_path. None on failure."""
-    url = _pexels_photo(query) or _openverse_photo(query)
+    url = _pexels_photo(query) or _wikimedia_photo(query) or _openverse_photo(query)
     if not url:
         return None
     try:
@@ -45,6 +45,36 @@ def _pexels_photo(query: str) -> str | None:
             return photos[0]["src"].get("large2x") or photos[0]["src"].get("large")
     except Exception as exc:  # noqa: BLE001
         logger.warning(f"Pexels-Foto '{query}' fehlgeschlagen: {exc}")
+    return None
+
+
+def _wikimedia_photo(query: str) -> str | None:
+    """Keyless Wikimedia Commons search (PD/CC, commercial-friendly). Returns a scaled
+    JPEG/PNG thumb URL. Reliable fallback when no Pexels key is set."""
+    try:
+        r = httpx.get(
+            "https://commons.wikimedia.org/w/api.php",
+            params={"action": "query", "format": "json", "generator": "search",
+                    "gsrsearch": f"{query} filetype:bitmap", "gsrnamespace": 6,
+                    "gsrlimit": 12, "prop": "imageinfo", "iiprop": "url|mime|size",
+                    "iiurlwidth": 1300},
+            headers={"User-Agent": "renditeradar/1.0 (contact: renditeradar@instagram)"},
+            timeout=30.0)
+        r.raise_for_status()
+        pages = (r.json().get("query") or {}).get("pages") or {}
+        best = None
+        for p in pages.values():
+            info = (p.get("imageinfo") or [{}])[0]
+            if info.get("mime") not in ("image/jpeg", "image/png"):
+                continue
+            if (info.get("width") or 0) < 900:          # skip tiny/icon files
+                continue
+            url = info.get("thumburl") or info.get("url")
+            if url:
+                best = best or url
+        return best
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"Wikimedia-Foto '{query}' fehlgeschlagen: {exc}")
     return None
 
 
