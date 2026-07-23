@@ -110,6 +110,11 @@ DIVIDEND_MONTHLY_TICKERS = _get_list(
     "DIVIDEND_MONTHLY_TICKERS",
     "O,MAIN,STAG,ADC,LTC,EPR,GOOD,GAIN,PECO,WSR,AGNC,APLE,PSEC,GWRS",
 )
+# Curated US Dividend Aristocrats (25+ consecutive years of dividend increases).
+DIVIDEND_ARISTOCRAT_TICKERS = _get_list(
+    "DIVIDEND_ARISTOCRAT_TICKERS",
+    "PG,KO,JNJ,MMM,CL,PEP,MCD,WMT,LOW,TGT,CAT,ADP,MDT,EMR",
+)
 # Blended factor weights (no sentiment): tech + fund should sum to 1.0.
 STOCK_W_TECH = float(_get("STOCK_W_TECH", "0.5"))
 STOCK_W_FUND = float(_get("STOCK_W_FUND", "0.5"))
