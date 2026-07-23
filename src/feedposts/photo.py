@@ -114,11 +114,14 @@ def render_photo_cover(image_path: str | None, kicker: str, headline: str,
     else:
         base = Image.new("RGBA", (W, H), branding.BG + (255,))
 
-    # readability gradient: transparent at top → strong dark at the bottom
+    # readability gradient: dark band at the very top (brand tag) + strong dark at bottom
     grad = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     gd = ImageDraw.Draw(grad)
+    top_band = H * 0.18
     for y in range(H):
-        a = int(235 * (max(0, y - H * 0.30) / (H * 0.70)) ** 1.3)
+        a = int(235 * (max(0, y - H * 0.30) / (H * 0.70)) ** 1.3)          # bottom
+        if y < top_band:                                                    # top
+            a = max(a, int(150 * (1 - y / top_band) ** 1.2))
         gd.line((0, y, W, y), fill=(6, 12, 18, min(a, 235)))
     base = Image.alpha_composite(base, grad)
     draw = ImageDraw.Draw(base)
