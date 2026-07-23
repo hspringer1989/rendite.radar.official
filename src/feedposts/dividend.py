@@ -92,7 +92,8 @@ def _render_table(rows: list[DivRow], index: int, total: int, out_path: str) -> 
     y = top + header_h
     for r in rows:
         draw.text((88, y + 6), r.ticker, font=tf, fill=branding.BLUE)
-        draw.text((252, y + 16), r.name[:16], font=nf, fill=branding.FG)
+        name_x = max(300, int(88 + draw.textlength(r.ticker, font=tf)) + 24)
+        draw.text((name_x, y + 16), r.name[:14], font=nf, fill=branding.FG)
         yp = f"{r.yield_pct:.1f}%".replace(".", ",") if r.yield_pct is not None else "—"
         draw.text((_COL_YIELD, y + 10), yp, font=yf, fill=branding.FG)
         _dot(draw, _CX_CHART, y + 36, r.chart_level)

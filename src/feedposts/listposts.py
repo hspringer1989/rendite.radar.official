@@ -63,7 +63,9 @@ def _render_table(rows: list[ListRow], metric_label: str, index: int, total: int
     y = top + header_h
     for r in rows:
         draw.text((88, y + 6), r.ticker, font=tf, fill=branding.BLUE)
-        draw.text((252, y + 16), r.name[:15], font=nf, fill=branding.FG)
+        # place the name after the ticker (dynamic) so long EU tickers never overlap it
+        name_x = max(300, int(88 + draw.textlength(r.ticker, font=tf)) + 24)
+        draw.text((name_x, y + 18), r.name[:14], font=nf, fill=branding.FG)
         draw.text((_COL_METRIC, y + 10), r.metric, font=mf, fill=branding.FG)
         _dot(draw, _CX_CHART, y + 36, r.chart_level)
         _dot(draw, _CX_FUND, y + 36, r.fund_level)
