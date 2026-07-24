@@ -81,13 +81,18 @@ def build_daily_stories(
     out_dir = Path(config.STORY_DIR)
     story_ids: list[int] = []
 
-    # 1) Earnings-of-the-day card
+    # 1) Earnings-of-the-day card — only when companies actually report today. On
+    #    weekends / holidays (and quiet weekdays) the calendar is empty, so we skip the
+    #    "Quartalszahlen heute" story entirely instead of posting an empty one.
     earnings = get_earnings_calendar().todays(config.STOCK_UNIVERSE, config.TIMEZONE)
-    e_path = render_earnings_card(earnings, str(out_dir / f"earnings_{_stamp()}.jpg"), day_label)
-    e_caption = f"📅 Quartalszahlen heute ({day_label})\n\n{_DISCLAIMER}"
-    story_ids.append(_persist("earnings", e_path, e_caption, trade_date,
-                              analysis={"tickers": [e.ticker for e in earnings]}))
-    logger.info(f"Earnings-Story erstellt: {len(earnings)} Termine")
+    if earnings:
+        e_path = render_earnings_card(earnings, str(out_dir / f"earnings_{_stamp()}.jpg"), day_label)
+        e_caption = f"📅 Quartalszahlen heute ({day_label})\n\n{_DISCLAIMER}"
+        story_ids.append(_persist("earnings", e_path, e_caption, trade_date,
+                                  analysis={"tickers": [e.ticker for e in earnings]}))
+        logger.info(f"Earnings-Story erstellt: {len(earnings)} Termine")
+    else:
+        logger.info("Keine Quartalszahlen heute — Earnings-Story übersprungen")
 
     # 2) Watchlist candidates (chart + fundamentals, no sentiment) — respecting the
     #    per-ticker cooldown so recently-analysed stocks are not repeated.
