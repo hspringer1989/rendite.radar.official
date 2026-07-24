@@ -628,11 +628,11 @@ def render_candidates_overview_card(candidates: list[Candidate], out_path: str) 
 
     # info banner: the detail analyses go live at the per-stock times shown on the right
     info = "Detailanalysen erscheinen heute zur angegebenen Uhrzeit in der Story"
-    inf = _font(24, bold=True)
-    bx1 = min(W - 60, 60 + int(draw.textlength(info, font=inf)) + 96)
-    draw.rounded_rectangle((60, y, bx1, y + 60), radius=30, fill=_LT_INFO)
-    draw.ellipse((90, y + 22, 106, y + 38), fill=_BRAND)
-    draw.text((122, y + 16), info, font=inf, fill=_BRAND)
+    inf = _font(21, bold=True)
+    bx1 = min(W - 60, 60 + int(draw.textlength(info, font=inf)) + 92)
+    draw.rounded_rectangle((60, y, bx1, y + 58), radius=29, fill=_LT_INFO)
+    draw.ellipse((90, y + 21, 104, y + 35), fill=_BRAND)
+    draw.text((120, y + 16), info, font=inf, fill=_BRAND)
     y += 60 + 26
 
     # expected time each stock's detail-analysis story goes live (EU vs US posting slots,
