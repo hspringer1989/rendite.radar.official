@@ -83,6 +83,8 @@ TIMEZONE = _get("TIMEZONE", "Europe/Berlin")
 # verified via `main.py verify-ig`). Keep these aligned with the real account.
 BRAND_NAME = _get("BRAND_NAME", "Renditeradar")
 BRAND_HANDLE = _get("BRAND_HANDLE", "@rendite.radar.official")
+# Round profile avatar baked into photo covers (top-left, like the IG profile picture)
+BRAND_AVATAR = _get("BRAND_AVATAR", str(BASE_DIR / "assets" / "templates" / "Rendite Radar Profilbild-selection.png"))
 
 # ── Stocks / daily story pipeline ─────────────────────────────────────────
 # yfinance | fake  (fake = offline testing without network)
