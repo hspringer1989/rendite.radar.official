@@ -344,7 +344,7 @@ def render_analysis_card(c: Candidate, out_path: str) -> str:
         _wrap_px(draw, f"Im Trend: {c.trend_reason}", _font(26), 280, yy + 8, W - 76,
                  _BLUE, 34, max_lines=2)
     else:
-        _wrap_px(draw, c.overall_text, _font(27), 280, yy + 8, W - 76, (214, 220, 226), 36, max_lines=3)
+        _wrap_px(draw, c.overall_text, _font(27), 280, yy + 8, W - 76, (214, 220, 226), 36, max_lines=4)
 
     draw.text((44, H - 62), "Keine Anlageberatung · keine Kauf-/Verkaufsempfehlung · Werbung",
               font=_font(24), fill=_MUTED)
