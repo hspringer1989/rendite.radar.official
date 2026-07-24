@@ -140,18 +140,12 @@ def render_photo_cover(image_path: str | None, kicker: str, headline: str,
     base = Image.alpha_composite(base, grad)
     draw = ImageDraw.Draw(base)
 
-    # brand header top-left: round profile avatar + name/handle (kept clear of the very
-    # top where Instagram overlays the profile name on stories)
-    ax, ay, asize = 60, 54, 104
-    avatar = config.BRAND_AVATAR and Path(config.BRAND_AVATAR).exists()
-    if avatar:
-        draw.ellipse((ax - 3, ay - 3, ax + asize + 3, ay + asize + 3), outline=(255, 255, 255), width=4)
+    # brand: large round profile avatar top-left (no text), kept clear of the very top
+    # where Instagram overlays the profile name on stories
+    ax, ay, asize = 56, 56, 300
+    if config.BRAND_AVATAR and Path(config.BRAND_AVATAR).exists():
+        draw.ellipse((ax - 5, ay - 5, ax + asize + 5, ay + asize + 5), outline=(255, 255, 255), width=6)
         base.alpha_composite(_circle_avatar(config.BRAND_AVATAR, asize), (ax, ay))
-    tx = ax + asize + 22 if avatar else 60
-    ty = 60 if avatar else 60
-    draw.text((tx, ty), config.BRAND_NAME, font=branding.load_font(38, bold=True), fill=(255, 255, 255))
-    if config.BRAND_HANDLE:
-        draw.text((tx + 2, ty + 48), config.BRAND_HANDLE, font=branding.load_font(26), fill=(220, 228, 235))
 
     # headline block, bottom-anchored
     h_lines = branding.wrap_lines(headline, 16)
