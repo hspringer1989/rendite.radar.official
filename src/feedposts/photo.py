@@ -109,6 +109,28 @@ def _circle_avatar(path: str, size: int):
     return im
 
 
+def _render_wordmark(scale: float = 1.0):
+    """The 'RENDITE / RADAR' two-banner wordmark (dark + light banner, slight tilt),
+    recreated cleanly on transparency — no blue logo background."""
+    from PIL import Image, ImageDraw
+
+    f = branding.load_font(int(80 * scale), bold=True)
+    pad_x, bh, rad = int(30 * scale), int(100 * scale), int(12 * scale)
+    measure = ImageDraw.Draw(Image.new("RGBA", (4, 4)))
+    w1 = int(measure.textlength("RENDITE", font=f)) + 2 * pad_x
+    w2 = int(measure.textlength("RADAR", font=f)) + 2 * pad_x
+    off, gap = int(34 * scale), int(8 * scale)
+    ty = int(bh / 2 - 52 * scale)
+    canvas = Image.new("RGBA", (max(w1, off + w2) + 6, bh * 2 + gap + 6), (0, 0, 0, 0))
+    d = ImageDraw.Draw(canvas)
+    d.rounded_rectangle((0, 0, w1, bh), radius=rad, fill=(26, 26, 26))
+    d.text((pad_x, ty), "RENDITE", font=f, fill=(255, 255, 255))
+    y2 = bh + gap
+    d.rounded_rectangle((off, y2, off + w2, y2 + bh), radius=rad, fill=(244, 244, 244))
+    d.text((off + pad_x, y2 + ty), "RADAR", font=f, fill=(22, 22, 22))
+    return canvas.rotate(4, expand=True, resample=Image.BICUBIC)
+
+
 def _cover_crop(img):
     from PIL import Image
 
@@ -140,12 +162,17 @@ def render_photo_cover(image_path: str | None, kicker: str, headline: str,
     base = Image.alpha_composite(base, grad)
     draw = ImageDraw.Draw(base)
 
-    # brand: large round profile avatar top-left (no text), kept clear of the very top
-    # where Instagram overlays the profile name on stories
-    ax, ay, asize = 56, 56, 300
-    if config.BRAND_AVATAR and Path(config.BRAND_AVATAR).exists():
-        draw.ellipse((ax - 5, ay - 5, ax + asize + 5, ay + asize + 5), outline=(255, 255, 255), width=6)
-        base.alpha_composite(_circle_avatar(config.BRAND_AVATAR, asize), (ax, ay))
+    # brand wordmark top-RIGHT, with a soft shadow for separation. Kept well below the
+    # top edge so it never collides with Instagram's clickable profile name.
+    from PIL import ImageFilter
+
+    wm = _render_wordmark(scale=0.62)
+    mx, my = W - wm.width - 56, 120
+    shadow = Image.new("RGBA", wm.size, (0, 0, 0, 0))
+    shadow.putalpha(wm.split()[3].point(lambda a: int(a * 0.5)))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(7))
+    base.alpha_composite(shadow, (mx + 4, my + 7))
+    base.alpha_composite(wm, (mx, my))
 
     # headline block, bottom-anchored
     h_lines = branding.wrap_lines(headline, 16)
