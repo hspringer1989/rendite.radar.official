@@ -403,7 +403,9 @@ def render_chart_card(c: Candidate, out_path: str) -> str:
 def _fig(value, suffix="", pct=False):
     if value is None:
         return "n/a"
-    return f"{value * 100:.0f}%" if pct else f"{value:.1f}{suffix}"
+    if pct:
+        return f"{value * 100:.0f} %"
+    return f"{value:.1f}{suffix}".replace(".", ",")
 
 
 def render_fundamental_card(c: Candidate, out_path: str) -> str:

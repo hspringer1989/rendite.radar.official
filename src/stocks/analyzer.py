@@ -56,7 +56,7 @@ Gib genau diese JSON-Struktur zurück:
   "candidates": [
     {{
       "ticker": "TICK",
-      "chart": "1-2 KURZE Sätze (~25 Wörter) mit Zahlen: Trendstruktur (Kurs vs. SMA20/SMA50) und RSI-Lage (Stop/Ziel stehen separat)",
+      "chart": "1-2 KURZE Sätze (~22 Wörter): Trendstruktur (Kurs vs. SMA20/SMA50) und RSI-Lage. Nenne im Text KEINE Stop-/Ziel-Werte (die werden separat angezeigt)",
       "fundamental": "1-2 KURZE Sätze (~28 Wörter) mit Zahlen: KGV (teuer/günstig) plus Wachstum ODER Marge — was das konkret heißt",
       "overall": "1 KURZER Satz (~24 Wörter): passen Chart und Fundamental zusammen? Wichtigste Chance UND Risiko knapp"
     }}
