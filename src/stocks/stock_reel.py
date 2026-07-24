@@ -164,12 +164,17 @@ Finanz-Bildungsprofils (Renditeradar). Zielgruppe: fortgeschrittene Privatanlege
 
 Aufbau (fünf kurze, gesprochene Segmente, je auf seine Rolle zugeschnitten):
 - hook: max. 12 Wörter, erzeugt sofort Spannung/Neugier zur Aktie und zum aktuellen Aufreger.
-- chart: 1–2 Sätze zur Charttechnik. Nenne KONKRET Kurs vs. 20-/50-Tage-Linie (Trend) und RSI, \
-und erwähne die charttechnischen Marken (Stop/Ziel) als Orientierung — nicht als Handlung.
-- fundamental: 1–2 Sätze mit KGV (teuer/günstig), Umsatzwachstum, Gewinnmarge — was das heißt.
-- overall: 1–2 Sätze: passen Chart und Fundamental zusammen? Wichtigste Chance UND wichtigstes Risiko.
+- chart: EIN Satz, max. 28 Wörter. Die WICHTIGSTE charttechnische Aussage (Trend über/unter der \
+20-/50-Tage-Linie ODER der RSI) plus eine Orientierungsmarke. NICHT alle Zahlen aufzählen.
+- fundamental: ein bis zwei Sätze, max. 30 Wörter. Die aussagekräftigste Kennzahl (z. B. KGV im \
+Verhältnis zum Wachstum) — nicht mechanisch alle drei Kennzahlen aneinanderreihen.
+- overall: ein bis zwei Sätze, max. 30 Wörter: passen Chart und Fundamental zusammen? Wichtigste \
+Chance UND wichtigstes Risiko in einem Satz.
 - cta: max. 10 Wörter, natürliche gesprochene Einladung zum Folgen (locker, kein \
 Werbe-Ton, kein Rendite-Versprechen). Beispiel-Ton: "Wenn dich das interessiert, folg uns gern."
+
+LÄNGE IST KRITISCH: das GESAMTE Skript zusammen HÖCHSTENS 110 Wörter (~45 Sekunden gesprochen). \
+Kürze rigoros — lieber EIN starker, konkreter Punkt je Segment als drei schwache.
 
 STRIKTE COMPLIANCE (BaFin/MAR): beobachtend, KEINE Kauf-/Verkaufsempfehlung, keine \
 Rendite-Versprechen, keine Imperative wie "kaufen"/"einsteigen". Ampel und Marken beschreiben \
