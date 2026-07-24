@@ -29,6 +29,10 @@ TTS_PROVIDER = _get("TTS_PROVIDER", "fake")  # elevenlabs | fake
 ELEVENLABS_API_KEY = _get("ELEVENLABS_API_KEY")
 ELEVENLABS_VOICE_ID = _get("ELEVENLABS_VOICE_ID")
 ELEVENLABS_MODEL = _get("ELEVENLABS_MODEL", "eleven_multilingual_v2")
+# Voice expressiveness: lower stability = livelier (less monotone/robotic); style adds emphasis.
+ELEVENLABS_STABILITY = float(_get("ELEVENLABS_STABILITY", "0.42"))
+ELEVENLABS_SIMILARITY = float(_get("ELEVENLABS_SIMILARITY", "0.8"))
+ELEVENLABS_STYLE = float(_get("ELEVENLABS_STYLE", "0.35"))
 TTS_DAILY_BUDGET_CHARS = int(_get("TTS_DAILY_BUDGET_CHARS", "15000"))
 
 # ── Trend collectors ──────────────────────────────────────────────────────

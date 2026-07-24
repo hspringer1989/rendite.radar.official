@@ -48,6 +48,12 @@ class ElevenLabsTTS:
                 "text": text,
                 "model_id": config.ELEVENLABS_MODEL,
                 "output_format": "mp3_44100_128",
+                "voice_settings": {
+                    "stability": config.ELEVENLABS_STABILITY,
+                    "similarity_boost": config.ELEVENLABS_SIMILARITY,
+                    "style": config.ELEVENLABS_STYLE,
+                    "use_speaker_boost": True,
+                },
             },
             timeout=120.0,
         )

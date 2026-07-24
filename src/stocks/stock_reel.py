@@ -6,6 +6,7 @@ Pexels b-roll for the hook and CTA. Educational/watchlist framing only (BaFin/MA
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -31,6 +32,38 @@ _DISCLAIMER = "⚠️ Keine Anlageberatung — nur Bildung & Unterhaltung. Kein 
 
 _HOOK_QUERY = "artificial intelligence computer chip"
 _CTA_QUERY = "young person investing smartphone"
+
+# Currency codes → spoken German (so the voice says "US-Dollar", not the letters "U-S-D").
+_CURRENCY_SPOKEN = {
+    "USD": "US-Dollar", "EUR": "Euro", "GBP": "britische Pfund", "CHF": "Franken",
+    "SEK": "schwedische Kronen", "DKK": "dänische Kronen", "NOK": "norwegische Kronen",
+    "JPY": "Yen",
+}
+
+
+def _spoken_name(name: str) -> str:
+    """A voice-friendly company name: first significant token, all-caps de-shouted
+    (NVIDIA → Nvidia) so ElevenLabs says the name instead of spelling letters. Short
+    acronyms (SAP, IBM, AMD) are kept as letters on purpose."""
+    base = re.split(r"[ ,.]", name.strip())[0] or name.strip()
+    if base.isupper() and len(base) > 4:
+        return base.capitalize()
+    return base
+
+
+def _spoken_de(text: str, ticker: str, name: str) -> str:
+    """Normalise a segment's text for natural German TTS WITHOUT changing meaning:
+    ticker/all-caps name → spoken name, currency codes/symbols → words, and decimal
+    commas get the spoken word 'Komma' so the voice doesn't pause mid-number."""
+    spoken = _spoken_name(name)
+    for token in {ticker, ticker.split(".")[0], name.split()[0] if name else ""}:
+        if token:
+            text = re.sub(rf"\b{re.escape(token)}\b", spoken, text)
+    for code, word in _CURRENCY_SPOKEN.items():
+        text = re.sub(rf"\b{code}\b", word, text)
+    text = text.replace("$", " Dollar").replace("€", " Euro").replace("%", " Prozent")
+    text = re.sub(r"(\d+),(\d+)", r"\1 Komma \2", text)   # 209,38 → "209 Komma 38"
+    return re.sub(r"\s+", " ", text).strip()
 
 
 # ── branded full-screen frames (content in the top ~1080px, lower band left clear
@@ -124,11 +157,19 @@ Aufbau (fünf kurze, gesprochene Segmente, je auf seine Rolle zugeschnitten):
 und erwähne die charttechnischen Marken (Stop/Ziel) als Orientierung — nicht als Handlung.
 - fundamental: 1–2 Sätze mit KGV (teuer/günstig), Umsatzwachstum, Gewinnmarge — was das heißt.
 - overall: 1–2 Sätze: passen Chart und Fundamental zusammen? Wichtigste Chance UND wichtigstes Risiko.
-- cta: max. 12 Wörter, lädt zum Folgen ein (kein Rendite-Versprechen).
+- cta: max. 10 Wörter, natürliche gesprochene Einladung zum Folgen (locker, kein \
+Werbe-Ton, kein Rendite-Versprechen). Beispiel-Ton: "Wenn dich das interessiert, folg uns gern."
 
 STRIKTE COMPLIANCE (BaFin/MAR): beobachtend, KEINE Kauf-/Verkaufsempfehlung, keine \
 Rendite-Versprechen, keine Imperative wie "kaufen"/"einsteigen". Ampel und Marken beschreiben \
 die DATEN, nicht eine Handlung.
+
+DAS SKRIPT WIRD VORGELESEN — schreibe alles so, wie es natürlich gesprochen klingt:
+- Nutze den FIRMENNAMEN (z. B. "Nvidia"), NIEMALS das Kürzel/Ticker (nicht "NVDA").
+- Währung ausgeschrieben: "US-Dollar" / "Euro" — niemals "USD", "$", "€".
+- RUNDE Zahlen im Text (keine Nachkommastellen): "rund 209 US-Dollar", nicht "209,38".
+- "Prozent" ausschreiben statt "%".
+- Jedes Segment kurz halten (die 5 Segmente zusammen ca. 45–55 Sekunden gesprochen).
 
 SPRACHE: natürliche gesprochene Sätze, korrekte deutsche Umlaute, NIEMALS ae/ue/oe/ss-Ersatz.
 WICHTIG für gültiges JSON: keine doppelten Anführungszeichen und keine Zeilenumbrüche innerhalb der Textwerte.
@@ -155,15 +196,17 @@ Gib GENAU diese JSON-Struktur zurück:
 
 def _fallback(c: Candidate, topic: str) -> tuple[dict, str, list[str]]:
     m = c.metrics
+    name = _spoken_name(m.name)
     texts = {
-        "hook": f"{m.name.split()[0]} — alle reden drüber. Aber was sagen die Daten wirklich?",
+        "hook": f"{name} — alle reden drüber. Aber was sagen die Daten wirklich?",
         "chart": c.chart_text or "",
         "fundamental": c.fundamental_text or "",
         "overall": c.overall_text or "",
-        "cta": "Folge Renditeradar für Chart- und Fundamental-Checks — kompakt erklärt.",
+        "cta": "Wenn dich solche Analysen interessieren, folg uns einfach für mehr.",
     }
-    texts["chart"] = (texts["chart"] + f" Charttechnische Marken: Stop bei {c.stop_loss:.0f}, "
-                      f"Ziel bei {c.take_profit:.0f} {m.currency}.").strip()
+    texts["chart"] = (texts["chart"] + f" Charttechnisch liegt die Risikomarke bei rund "
+                      f"{c.stop_loss:.0f} und die Potenzialmarke bei rund {c.take_profit:.0f} "
+                      f"{m.currency}.").strip()
     caption = (f"{m.name}: {topic}. Was Charttechnik und Fundamental aktuell zeigen — mit unserem "
                f"Ampel-Check.\n\nFolge {config.BRAND_HANDLE} für mehr 📈\n\n{_DISCLAIMER}")
     hashtags = ["#aktien", "#börse", "#investieren", "#finanzen", "#charttechnik",
@@ -220,6 +263,9 @@ def build_stock_reel(ticker: str, topic: str = "", md: MarketData | None = None,
         return None
 
     texts, caption, hashtags = _reel_script(c, llm, topic)
+    # normalise each segment for natural TTS (ticker→name, USD→US-Dollar, decimals→"Komma");
+    # done per-segment so the burned-in subtitles stay in sync with the spoken words.
+    texts = {k: _spoken_de(v, ticker.upper(), c.metrics.name) for k, v in texts.items()}
     segments = [ScriptSegment(text=texts[r], broll_query="") for r in _ROLES]
     script = ReelScript(hook=texts["hook"], segments=segments, caption=caption,
                         hashtags=hashtags, title=f"{c.metrics.name} — Analyse-Reel")
