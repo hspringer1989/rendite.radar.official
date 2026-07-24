@@ -496,49 +496,132 @@ def render_overall_card(c: Candidate, out_path: str) -> str:
     return _save(img, out_path)
 
 
-# ── Earnings + overview cards ──────────────────────────────────────────────
-def render_earnings_card(items: list[EarningsItem], out_path: str, day_label: str) -> str:
-    img, draw = _new_card()
-    draw.text((_MARGIN, _TOP), "Quartalszahlen heute", font=_font(64, bold=True), fill=_FG)
-    draw.text((_MARGIN, _TOP + 90), day_label, font=_font(34), fill=_MUTED)
+# ── Earnings + overview cards (light "story" templates) ────────────────────
+_LT_BG = (243, 241, 235)      # cream page
+_LT_CARD = (255, 255, 255)    # white row card
+_LT_INK = (22, 27, 32)        # dark text
+_LT_GREY = (140, 148, 156)    # muted grey (sector, footer)
+_LT_BADGE = (26, 28, 32)      # dark US/EU badge
+_LT_PILL = (233, 231, 224)    # light grey pill (vorbörslich)
 
-    y = _TOP + 200
+
+def _brandmark(draw, x: int, y: int) -> None:
+    """Small radar icon + 'RENDITE RADAR' wordmark (dark, on the light template)."""
+    draw.ellipse((x, y, x + 50, y + 50), outline=_LT_INK, width=5)
+    draw.ellipse((x + 30, y + 8, x + 46, y + 24), fill=_BRAND)
+    draw.text((x + 70, y + 8), "RENDITE RADAR", font=_font(34, bold=True), fill=_LT_INK)
+
+
+def _pill_right(draw, right_x: int, y: int, text: str, bg, fg, fsize: int = 28) -> int:
+    f = _font(fsize, bold=True)
+    w = draw.textlength(text, font=f)
+    h = int(fsize * 1.85)
+    x0 = int(right_x - w - 52)
+    draw.rounded_rectangle((x0, y, right_x, y + h), radius=h // 2, fill=bg)
+    draw.text((x0 + 26, y + int(h * 0.24)), text, font=f, fill=fg)
+    return x0
+
+
+def _dark_badge(draw, x: int, y: int, market: str) -> int:
+    w, h = 76, 60
+    draw.rounded_rectangle((x, y, x + w, y + h), radius=14, fill=_LT_BADGE)
+    t = market or "US"
+    tf = _font(28, bold=True)
+    draw.text((x + (w - draw.textlength(t, font=tf)) / 2, y + 14), t, font=tf, fill=(255, 255, 255))
+    return x + w
+
+
+def _lt_footer(draw) -> None:
+    draw.text((44, H - 66), "Keine Anlageberatung · keine Kauf-/Verkaufsempfehlung · Werbung",
+              font=_font(24), fill=_LT_GREY)
+    hf = _font(24, bold=True)
+    draw.text((W - 44 - draw.textlength(config.BRAND_HANDLE, font=hf), H - 66),
+              config.BRAND_HANDLE, font=hf, fill=_LT_INK)
+
+
+def _lt_head(draw, pill_text: str, title: str, sub_segments: list[tuple]) -> int:
+    """Shared header: radar wordmark (left) + blue pill (right) + big title + subtitle.
+    Returns the y below the subtitle. Kept clear of Instagram's top profile overlay."""
+    _brandmark(draw, 60, 172)
+    _pill_right(draw, W - 56, 170, pill_text, _BRAND, (255, 255, 255), 28)
+    y = _draw_fit(draw, title, (60, 244, W - 70, 470), _LT_INK, 90, 60, bold=True)
+    x = 62
+    sf = _font(34, bold=True)
+    for text, color in sub_segments:
+        draw.text((x, y + 8), text, font=sf, fill=color)
+        x += draw.textlength(text, font=sf)
+    return y + 70
+
+
+def render_earnings_card(items: list[EarningsItem], out_path: str, day_label: str) -> str:
+    from PIL import Image, ImageDraw
+
+    img = Image.new("RGB", (W, H), _LT_BG)
+    draw = ImageDraw.Draw(img)
+    y = _lt_head(draw, "EARNINGS", "Quartalszahlen heute", [(day_label, _BRAND)]) + 20
+
     if not items:
-        draw.text((60, y), "Heute keine relevanten Termine.", font=_font(40), fill=_MUTED)
+        draw.text((60, y + 10), "Heute keine relevanten Termine.", font=_font(40), fill=_LT_GREY)
+        _lt_footer(draw)
         return _save(img, out_path)
 
-    for it in items[:14]:
-        x = _market_badge(draw, 60, y, it.market)
-        draw.text((x, y + 2), it.ticker, font=_font(40, bold=True), fill=_BRAND)
-        draw.text((x + 190, y + 8), f"{it.name}"[:24], font=_font(32), fill=_FG)
+    nf = _font(46, bold=True)
+    for it in items[:7]:
+        lines = _wrap_lines_px(draw, it.name or it.ticker, nf, 560)[:2]
+        ch = 150 if len(lines) == 1 else 202
+        draw.rounded_rectangle((60, y, W - 60, y + ch), radius=24, fill=_LT_CARD)
+        draw.rounded_rectangle((62, y + 18, 74, y + ch - 18), radius=6, fill=_BRAND)   # accent bar
+        bx = _dark_badge(draw, 104, y + ch // 2 - 30, it.market)
+        tx = bx + 34
+        block_h = len(lines) * 54 + 42
+        ty = y + (ch - block_h) // 2
+        for ln in lines:
+            draw.text((tx, ty), ln, font=nf, fill=_LT_INK)
+            ty += 54
+        draw.text((tx, ty + 2), it.ticker, font=_font(30, bold=True), fill=_BRAND)
         if it.when:
-            draw.text((x, y + 50), it.when, font=_font(26), fill=_MUTED)
-        y += 100
+            _pill_right(draw, W - 92, y + ch // 2 - 26, it.when, _LT_PILL, (108, 114, 122), 26)
+        y += ch + 20
         if y > H - 220:
             break
+    _lt_footer(draw)
     return _save(img, out_path)
 
 
 def render_candidates_overview_card(candidates: list[Candidate], out_path: str) -> str:
-    img, draw = _new_card()
-    draw.text((_MARGIN, _TOP), "Auf der Watchlist heute", font=_font(60, bold=True), fill=_FG)
-    draw.text((_MARGIN, _TOP + 85), "Charttechnik + Fundamental · verschiedene Branchen",
-              font=_font(32), fill=_MUTED)
+    from PIL import Image, ImageDraw
 
-    y = _TOP + 200
-    for c in candidates:
+    img = Image.new("RGB", (W, H), _LT_BG)
+    draw = ImageDraw.Draw(img)
+    y = _lt_head(draw, "WATCHLIST", "Auf der Watchlist heute",
+                 [("Charttechnik + Fundamental", _BRAND),
+                  ("   ·   verschiedene Branchen", _LT_GREY)]) + 20
+
+    for c in candidates[:5]:
         m = c.metrics
-        o_level, _ = ind.tendency(m.blended, "overall")
-        # overall traffic light per ticker
-        draw.ellipse((60, y + 6, 96, y + 42), fill=_LIGHT[o_level])
-        x = _market_badge(draw, 116, y, m.market)
-        draw.text((x, y + 2), m.ticker, font=_font(44, bold=True), fill=_FG)
-        draw.text((x + 200, y + 8), f"{m.sector}"[:20], font=_font(30), fill=_MUTED)
+        ch = 152
+        draw.rounded_rectangle((60, y, W - 60, y + ch), radius=24, fill=_LT_CARD)
+        bx = _dark_badge(draw, 96, y + 30, m.market)
+        tx = bx + 30
+        nf = _font(44, bold=True)
+        name = m.name[:18]
+        draw.text((tx, y + 28), name, font=nf, fill=_LT_INK)
+        nx = tx + draw.textlength(name, font=nf) + 18
+        tkf = _font(28, bold=True)
+        draw.text((nx, y + 40), m.ticker, font=tkf, fill=_BRAND)
+        sx = nx + draw.textlength(m.ticker, font=tkf) + 16
+        draw.text((sx, y + 42), m.sector[:16], font=_font(26), fill=_LT_GREY)
         c_lvl, c_lab = ind.tendency(m.tech_score, "chart")
         f_lvl, f_lab = ind.tendency(m.fund_score, "fund")
-        draw.text((116, y + 58), f"Chart: {c_lab}  ·  Fundamental: {f_lab}",
-                  font=_font(28), fill=_MUTED)
-        y += 138
-        if y > H - 260:
+        yy = y + 96
+        lf = _font(28, bold=True)
+        draw.ellipse((tx, yy, tx + 22, yy + 22), fill=_LIGHT[c_lvl])
+        draw.text((tx + 34, yy - 4), f"Chart: {c_lab}", font=lf, fill=_LT_INK)
+        x2 = tx + 34 + draw.textlength(f"Chart: {c_lab}", font=lf) + 44
+        draw.ellipse((x2, yy, x2 + 22, yy + 22), fill=_LIGHT[f_lvl])
+        draw.text((x2 + 34, yy - 4), f"Fundamental: {f_lab}", font=lf, fill=_LT_INK)
+        y += ch + 20
+        if y > H - 240:
             break
+    _lt_footer(draw)
     return _save(img, out_path)
