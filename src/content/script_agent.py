@@ -19,7 +19,12 @@ Struktur (Retention-optimiert):
 muss in 2 Sekunden Aufmerksamkeit erzwingen ("Diese 3 Fehler kosten dich 100.000 €...")
 2. 3–5 kurze Segmente: ein Gedanke pro Segment, einfache Sprache, konkrete Zahlen, \
 direkte Ansprache ("du")
-3. CTA am Ende: "Folge {brand} für täglich frisches Finanzwissen" (Wortlaut variieren) + \
+3. Das letzte inhaltliche Segment MUSS ein echtes AHA-ERLEBNIS liefern: eine überraschende, \
+THEMENSPEZIFISCHE Erkenntnis oder kontraintuitive Zahl, die der Zuschauer so noch nicht wusste. \
+VERBOTEN als Standard-Fazit: generische Lektionen wie "Streuung schützt", "Klumpenrisiko \
+vermeiden", "breit diversifizieren" — die kennt die Zielgruppe längst. Grabe stattdessen den \
+einen Fakt aus dem Thema aus, der hängen bleibt.
+4. CTA am Ende: "Folge {brand} für täglich frisches Finanzwissen" (Wortlaut variieren) + \
 "Mehr dazu über den Link in der Bio" (nur wenn thematisch passend)
 
 COMPLIANCE (zwingend, keine Ausnahmen):
