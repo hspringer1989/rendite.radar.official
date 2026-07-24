@@ -96,6 +96,15 @@ def produce_reel(trend: TrendRow, llm: LLMProvider | None = None) -> int | None:
             session.get(TrendRow, trend.id).status = "skipped"
         return None
 
+    # normalise each segment for natural German TTS (%, currency, decimals, dashes) so the
+    # voice flows; done per-segment to keep the burned-in subtitles in sync with the words
+    from src.stocks.stock_reel import _spoken_de
+
+    for seg in script.segments:
+        seg.text = _spoken_de(seg.text, "", "")
+    if script.segments:
+        script.hook = script.segments[0].text
+
     with session_scope() as session:
         reel = ReelRow(
             trend_id=trend.id, script_json=_script_to_json(script),
