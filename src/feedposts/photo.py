@@ -162,17 +162,13 @@ def render_photo_cover(image_path: str | None, kicker: str, headline: str,
     base = Image.alpha_composite(base, grad)
     draw = ImageDraw.Draw(base)
 
-    # brand wordmark top-RIGHT, with a soft shadow for separation. Kept well below the
-    # top edge so it never collides with Instagram's clickable profile name.
-    from PIL import ImageFilter
-
-    wm = _render_wordmark(scale=0.62)
-    mx, my = W - wm.width - 56, 120
-    shadow = Image.new("RGBA", wm.size, (0, 0, 0, 0))
-    shadow.putalpha(wm.split()[3].point(lambda a: int(a * 0.5)))
-    shadow = shadow.filter(ImageFilter.GaussianBlur(7))
-    base.alpha_composite(shadow, (mx + 4, my + 7))
-    base.alpha_composite(wm, (mx, my))
+    # brand: large round profile avatar top-RIGHT (no text), kept well below the top edge
+    # so it never collides with Instagram's clickable profile name.
+    asize = 300
+    ax, ay = W - asize - 56, 116
+    if config.BRAND_AVATAR and Path(config.BRAND_AVATAR).exists():
+        draw.ellipse((ax - 5, ay - 5, ax + asize + 5, ay + asize + 5), outline=(255, 255, 255), width=6)
+        base.alpha_composite(_circle_avatar(config.BRAND_AVATAR, asize), (ax, ay))
 
     # headline block, bottom-anchored
     h_lines = branding.wrap_lines(headline, 16)
