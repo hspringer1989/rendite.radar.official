@@ -276,11 +276,56 @@ def _mini_chart(draw, box, m, c) -> None:
     draw.ellipse((ex - 9, ey - 9, ex + 9, ey + 9), fill=(255, 255, 255))
 
 
+def _wrap_lines_px(draw, text: str, font, max_w: int) -> list[str]:
+    out: list[str] = []
+    for para in text.split("\n"):
+        line = ""
+        for word in para.split():
+            trial = f"{line} {word}".strip()
+            if line and draw.textlength(trial, font=font) > max_w:
+                out.append(line)
+                line = word
+            else:
+                line = trial
+        if line:
+            out.append(line)
+    return out
+
+
+def _draw_fit(draw, text: str, box, fill, size_max: int, size_min: int,
+              bold: bool = False, ratio: float = 1.34) -> int:
+    """Draw `text` wrapped inside `box` (x0,y0,x1,y1), shrinking the font from size_max
+    down until ALL of it fits — so text is never cut off (no ellipsis)."""
+    x0, y0, x1, y1 = box
+    bw, bh = x1 - x0, y1 - y0
+    font = _font(size_min, bold)
+    lh = int(size_min * ratio)
+    lines = _wrap_lines_px(draw, text, font, bw)
+    for size in range(size_max, size_min - 1, -1):
+        f = _font(size, bold)
+        h = int(size * ratio)
+        ls = _wrap_lines_px(draw, text, f, bw)
+        if len(ls) * h <= bh:
+            font, lh, lines = f, h, ls
+            break
+    else:
+        lines = lines[: max(1, bh // lh)]  # pathological length only
+    yy = y0
+    for line in lines:
+        draw.text((x0, yy), line, font=font, fill=fill)
+        yy += lh
+    return yy
+
+
 _FAZIT_HEADING = {"pos": "Chancen überwiegen", "neu": "Ausgewogenes Bild", "neg": "Risiken überwiegen"}
+_INK_SOFT = (66, 74, 86)      # dark body text on the light Fazit card
+_HEAD_SUB = (224, 230, 238)   # near-white header subtitle (was grey)
+_DOT_OFF_LT = (201, 205, 212)  # inactive traffic dot on a light background
 
 
 def render_analysis_card(c: Candidate, out_path: str) -> str:
-    """ONE story card with Fundamental + Charttechnik + Fazit (template design)."""
+    """ONE story card with Fundamental + Charttechnik + Fazit (template design).
+    Text boxes auto-shrink their font so nothing is ever cut off."""
     from PIL import Image, ImageDraw
 
     m = c.metrics
@@ -288,7 +333,7 @@ def render_analysis_card(c: Candidate, out_path: str) -> str:
     draw = ImageDraw.Draw(img)
     y = _TOP
 
-    # header: (trend badge) + ticker + name
+    # header: (trend badge) + ticker + name (subtitle in near-white, not grey)
     if c.category:
         w = draw.textlength(c.category, font=_font(26, bold=True))
         draw.rounded_rectangle((40, y, 40 + w + 40, y + 46), radius=12, fill=_BRAND)
@@ -296,12 +341,12 @@ def render_analysis_card(c: Candidate, out_path: str) -> str:
         y += 60
     x = _market_badge(draw, 40, y + 10, m.market)
     draw.text((x, y), m.ticker, font=_font(54, bold=True), fill=_FG)
-    draw.text((x, y + 62), f"{m.name} · {m.sector}"[:38], font=_font(26), fill=_MUTED)
+    draw.text((x, y + 62), f"{m.name} · {m.sector}"[:38], font=_font(26), fill=_HEAD_SUB)
     y += 122
 
     # ── Card 01 · Fundamental ────────────────────────────────────────────────
     f_lvl, _ = ind.tendency(m.fund_score, "fund")
-    fh = 396
+    fh = 402
     draw.rounded_rectangle((40, y, W - 40, y + fh), radius=28, fill=_CARD_LT)
     _section_title(draw, 76, y + 30, "01", "Fundamental", f_lvl)
     tiles = [
@@ -315,36 +360,35 @@ def render_analysis_card(c: Candidate, out_path: str) -> str:
     for value, label in tiles:
         _stat_tile(draw, (tx, y + 108, tx + tw, y + 232), value, label)
         tx += tw + gap
-    _wrap_px(draw, c.fundamental_text, _font(30), 76, y + 262, W - 76, _INK, 40, max_lines=3)
-    y += fh + 26
+    _draw_fit(draw, c.fundamental_text, (76, y + 250, W - 76, y + fh - 20), _INK, 32, 23)
+    y += fh + 24
 
     # ── Card 02 · Charttechnik ───────────────────────────────────────────────
     c_lvl, _ = ind.tendency(m.tech_score, "chart")
-    ch = 560
+    ch = 556
     draw.rounded_rectangle((40, y, W - 40, y + ch), radius=28, fill=_CARD_LT)
     _section_title(draw, 76, y + 30, "02", "Charttechnik", c_lvl)
     _mini_chart(draw, (76, y + 108, 748, y + 380), m, c)
     _val_box(draw, 782, y + 108, "ZIEL", f"{c.take_profit:.0f} {m.currency}", _ACCENT)
     _val_box(draw, 782, y + 258, "STOP", f"{c.stop_loss:.0f} {m.currency}", _RED)
-    _wrap_px(draw, c.chart_text, _font(30), 76, y + 406, W - 76, _INK, 40, max_lines=3)
-    y += ch + 26
+    _draw_fit(draw, c.chart_text, (76, y + 398, W - 76, y + ch - 18), _INK, 32, 23)
+    y += ch + 24
 
-    # ── Fazit strip ──────────────────────────────────────────────────────────
+    # ── Fazit strip (light background, like the cards above) ─────────────────
     o_lvl, o_label = ind.tendency(m.blended, "overall")
-    draw.rounded_rectangle((40, y, W - 40, y + 300), radius=28, fill=_CHIP)
-    draw.text((76, y + 40), "FAZIT", font=_font(26, bold=True), fill=_MUTED)
+    fzh = 300
+    draw.rounded_rectangle((40, y, W - 40, y + fzh), radius=28, fill=_CARD_LT)
+    draw.text((76, y + 40), "FAZIT", font=_font(26, bold=True), fill=_INK_MUT)
     for i, lv in enumerate(("neg", "neu", "pos")):
         cx = 76 + i * 46
-        col = _LIGHT[lv] if lv == o_lvl else (74, 82, 94)
+        col = _LIGHT[lv] if lv == o_lvl else _DOT_OFF_LT
         draw.ellipse((cx, y + 92, cx + 32, y + 124), fill=col)
-    draw.text((280, y + 34), f"Gesamtbild · {o_label}", font=_font(28, bold=True), fill=_MUTED)
-    yy = _wrap_px(draw, _FAZIT_HEADING.get(o_lvl, "Ausgewogenes Bild"), _font(46, bold=True),
-                  280, y + 72, W - 76, _FG, 54, max_lines=2)
-    if c.trend_reason:
-        _wrap_px(draw, f"Im Trend: {c.trend_reason}", _font(26), 280, yy + 8, W - 76,
-                 _BLUE, 34, max_lines=2)
-    else:
-        _wrap_px(draw, c.overall_text, _font(27), 280, yy + 8, W - 76, (214, 220, 226), 36, max_lines=4)
+    draw.text((250, y + 36), f"Gesamtbild · {o_label}", font=_font(28, bold=True), fill=_INK_MUT)
+    yy = _draw_fit(draw, _FAZIT_HEADING.get(o_lvl, "Ausgewogenes Bild"),
+                   (250, y + 74, W - 76, y + 146), _INK, 46, 34, bold=True)
+    body = f"Im Trend: {c.trend_reason}" if c.trend_reason else c.overall_text
+    body_fill = _BRAND if c.trend_reason else _INK_SOFT
+    _draw_fit(draw, body, (250, yy + 6, W - 76, y + fzh - 22), body_fill, 30, 22)
 
     draw.text((44, H - 62), "Keine Anlageberatung · keine Kauf-/Verkaufsempfehlung · Werbung",
               font=_font(24), fill=_MUTED)
