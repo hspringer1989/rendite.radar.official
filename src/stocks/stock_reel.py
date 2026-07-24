@@ -51,10 +51,19 @@ def _spoken_name(name: str) -> str:
     return base
 
 
+def _num_spoken(m: re.Match) -> str:
+    """Prices/large values → rounded whole number (avoids a staccato 'X Komma YY' chain
+    when several decimals sit in one sentence); small ratios/scores keep the decimal."""
+    whole, frac = m.group(1), m.group(2)
+    if int(whole) >= 10:
+        return str(round(float(f"{whole}.{frac}")))
+    return f"{whole} Komma {frac}"
+
+
 def _spoken_de(text: str, ticker: str, name: str) -> str:
     """Normalise a segment's text for natural German TTS WITHOUT changing meaning:
-    ticker/all-caps name → spoken name, currency codes/symbols → words, and decimal
-    commas get the spoken word 'Komma' so the voice doesn't pause mid-number."""
+    ticker/all-caps name → spoken name, currency codes/symbols → words, em/en dashes →
+    commas, and decimals rounded (or spoken as 'Komma') so the voice flows."""
     spoken = _spoken_name(name)
     for token in {ticker, ticker.split(".")[0], name.split()[0] if name else ""}:
         if token:
@@ -62,8 +71,9 @@ def _spoken_de(text: str, ticker: str, name: str) -> str:
     for code, word in _CURRENCY_SPOKEN.items():
         text = re.sub(rf"\b{code}\b", word, text)
     text = text.replace("$", " Dollar").replace("€", " Euro").replace("%", " Prozent")
-    text = re.sub(r"(\d+),(\d+)", r"\1 Komma \2", text)          # 209,38 → "209 Komma 38"
-    text = re.sub(r"(\d+)\.(\d{1,2})\b", r"\1 Komma \2", text)   # score 0.72 → "0 Komma 72"
+    text = re.sub(r"\s*[—–]\s*", ", ", text)                       # dash → natural comma pause
+    text = re.sub(r"(\d+)[.,](\d{1,2})\b", _num_spoken, text)      # 208,76 → "209" ; 0,72 → "0 Komma 72"
+    text = re.sub(r"\s+,", ",", text)
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -252,9 +262,13 @@ def _reel_script(c: Candidate, llm: LLMProvider, topic: str) -> tuple[dict, str,
 
 
 def build_stock_reel(ticker: str, topic: str = "", md: MarketData | None = None,
-                     llm: LLMProvider | None = None) -> int | None:
+                     llm: LLMProvider | None = None, texts: dict | None = None,
+                     caption: str = "") -> int | None:
     """Analyse one ticker → 5-segment voiceover reel with the chart/fundamental/overall
-    frames as backgrounds. Persists a ReelRow(pending_review); returns its id or None."""
+    frames as backgrounds. Persists a ReelRow(pending_review); returns its id or None.
+
+    `texts` (hook/chart/fundamental/overall/cta) can be supplied to REUSE an earlier
+    (e.g. Claude-written) script without a fresh LLM call; `caption` likewise."""
     md = md or get_market_data()
     llm = llm or get_llm()
     topic = topic or "aktuell stark im Gespräch"
@@ -263,7 +277,13 @@ def build_stock_reel(ticker: str, topic: str = "", md: MarketData | None = None,
         logger.warning(f"{ticker}: keine Daten — kein Reel")
         return None
 
-    texts, caption, hashtags = _reel_script(c, llm, topic)
+    fb_texts, fb_caption, fb_tags = _fallback(c, topic)
+    if texts is None:
+        texts, gen_caption, hashtags = _reel_script(c, llm, topic)
+    else:
+        texts = {r: (texts.get(r) or fb_texts[r]) for r in _ROLES}
+        gen_caption, hashtags = fb_caption, fb_tags
+    caption = caption or gen_caption
     # normalise each segment for natural TTS (ticker→name, USD→US-Dollar, decimals→"Komma");
     # done per-segment so the burned-in subtitles stay in sync with the spoken words.
     texts = {k: _spoken_de(v, ticker.upper(), c.metrics.name) for k, v in texts.items()}
