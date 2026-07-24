@@ -190,18 +190,25 @@ def cmd_post_story(story_id: int) -> None:
 
 def cmd_publish(reel_id: int) -> None:
     from src.publish.instagram import publish_reel
+    from src.pipeline import announce_new_reel
 
     with session_scope() as session:
         reel = session.get(ReelRow, reel_id)
         if reel is None:
             raise SystemExit(f"Reel #{reel_id} existiert nicht")
-    media_id = asyncio.run(publish_reel(reel.video_path, reel.caption))
-    with session_scope() as session:
-        row = session.get(ReelRow, reel_id)
-        row.status = "published"
-        row.ig_media_id = media_id
-        row.published_at = datetime.now(timezone.utc).isoformat()
-    print(f"Reel #{reel_id} veröffentlicht (IG media id {media_id})")
+
+    async def _run() -> str:
+        media_id = await publish_reel(reel.video_path, reel.caption)
+        with session_scope() as session:
+            row = session.get(ReelRow, reel_id)
+            row.status = "published"
+            row.ig_media_id = media_id
+            row.published_at = datetime.now(timezone.utc).isoformat()
+        await announce_new_reel(reel_id)  # auto "NEUES REEL" story
+        return media_id
+
+    media_id = asyncio.run(_run())
+    print(f"Reel #{reel_id} veröffentlicht (IG media id {media_id}) + Ankündigungs-Story")
 
 
 def cmd_status() -> None:

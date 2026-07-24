@@ -73,19 +73,21 @@ def _center_wrap(draw, text: str, font, y: int, width_chars: int, fill, line_h: 
     return y
 
 
-def render_new_post_story(title: str, out_path: str) -> str:
-    """A striking 'NEUER BEITRAG' story announcing a fresh feed carousel.
+def render_new_post_story(title: str, out_path: str, badge: str = "NEUER BEITRAG",
+                          sub: str = "gerade im Feed erschienen",
+                          cta: str = "Jetzt im Feed ansehen") -> str:
+    """A striking announcement story for fresh content (feed carousel or reel).
 
     Graph-API stories can't carry a tappable link/sticker, so instead of a fake button
     we point users to the ONE tappable element Instagram itself provides: the profile
-    name at the top of the story (tapping it opens the profile → the new feed post)."""
+    name at the top of the story (tapping it opens the profile → the new content)."""
     img, draw = _new_card()
     draw.rounded_rectangle((80, 470, W - 80, 668), radius=54, fill=_BRAND)
-    _center(draw, "NEUER BEITRAG", _font(84, bold=True), 512, (255, 255, 255))
-    _center(draw, "gerade im Feed erschienen", _font(40), 760, _MUTED)
+    _center(draw, badge, _font(84, bold=True), 512, (255, 255, 255))
+    _center(draw, sub, _font(40), 760, _MUTED)
     _center_wrap(draw, title, _font(58, bold=True), 860, 22, _FG, 76)
 
-    _center(draw, "Jetzt im Feed ansehen", _font(46, bold=True), 1280, _BRAND)
+    _center(draw, cta, _font(46, bold=True), 1280, _BRAND)
     _center(draw, "tippe oben auf mein Profil", _font(34), 1352, _MUTED)
     return _save(img, out_path)
 

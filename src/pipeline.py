@@ -183,6 +183,48 @@ def handle_regenerates() -> list[int]:
     return new_ids
 
 
+async def announce_new_reel(reel_id: int) -> str | None:
+    """Auto-post a striking 'NEUES REEL' story after a reel goes live — same idea as the
+    feed-post announcement. Best-effort: a failure never affects the reel itself."""
+    import config
+    from zoneinfo import ZoneInfo
+
+    if not config.FEED_ANNOUNCE_STORY:
+        return None
+    from src.publish.instagram import publish_story, publishing_configured
+    from src.stocks.story_cards import render_new_post_story
+    from src.storage.database import StoryRow
+
+    if not publishing_configured():
+        return None
+    with session_scope() as session:
+        reel = session.get(ReelRow, reel_id)
+        if reel is None:
+            return None
+        raw = reel.script_json or "{}"
+    data = json.loads(raw) if raw else {}
+    title = data.get("title") or (data.get("texts") or {}).get("hook") or "Neues Reel"
+    day = datetime.now(ZoneInfo(config.TIMEZONE))
+    stamp = day.strftime("%Y%m%d_%H%M%S")
+    path = render_new_post_story(
+        title, str(config.STORY_DIR / f"announce_reel_{reel_id}_{stamp}.jpg"),
+        badge="NEUES REEL", sub="gerade als Reel gepostet",
+    )
+    try:
+        media_id = await publish_story(path)
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"Neues-Reel-Story fehlgeschlagen: {exc}")
+        return None
+    with session_scope() as session:
+        session.add(StoryRow(
+            kind="announce", trade_date=day.strftime("%Y-%m-%d"), image_path=path,
+            caption=f"Neues Reel: {title}", status="published", ig_media_id=media_id,
+            published_at=datetime.now(timezone.utc).isoformat(),
+        ))
+    logger.info(f"Neues-Reel-Story gepostet (IG media id {media_id})")
+    return media_id
+
+
 async def publish_next_approved() -> int | None:
     """Publish the oldest approved reel; returns its id or None if queue is empty."""
     from src.publish.instagram import publish_reel
@@ -209,4 +251,5 @@ async def publish_next_approved() -> int | None:
         row.status = "published"
         row.ig_media_id = media_id
         row.published_at = datetime.now(timezone.utc).isoformat()
+    await announce_new_reel(reel.id)
     return reel.id
