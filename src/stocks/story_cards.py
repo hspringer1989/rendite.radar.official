@@ -645,14 +645,15 @@ def render_candidates_overview_card(candidates: list[Candidate], out_path: str) 
         bx = _dark_badge(draw, 96, y + 32, m.market)
         tx = bx + 30
         nf = _font(44, bold=True)
-        name = _truncate_px(draw, _clean_name(m.name), nf, 320)
+        name = _truncate_px(draw, _clean_name(m.name), nf, 360)
         draw.text((tx, y + 26), name, font=nf, fill=_LT_INK)
         nx = tx + draw.textlength(name, font=nf) + 18
         tkf = _font(28, bold=True)
         draw.text((nx, y + 38), m.ticker, font=tkf, fill=_BRAND)
         sx = nx + draw.textlength(m.ticker, font=tkf) + 16
-        sf = _font(26)
-        draw.text((sx, y + 40), _truncate_px(draw, m.sector, sf, max(40, 720 - sx)), font=sf, fill=_LT_GREY)
+        sf = _font(26)   # sector only if it clearly fits before the teaser (else omit, no "…")
+        if draw.textlength(m.sector, font=sf) <= 720 - sx:
+            draw.text((sx, y + 40), m.sector, font=sf, fill=_LT_GREY)
 
         # teaser (right): when the detail analysis goes live
         t = times.get(id(c), "")
