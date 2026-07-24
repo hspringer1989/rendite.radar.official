@@ -503,6 +503,7 @@ _LT_INK = (22, 27, 32)        # dark text
 _LT_GREY = (140, 148, 156)    # muted grey (sector, footer)
 _LT_BADGE = (26, 28, 32)      # dark US/EU badge
 _LT_PILL = (233, 231, 224)    # light grey pill (vorbörslich)
+_LT_INFO = (230, 240, 251)    # light-blue info banner
 
 # Trailing tokens dropped from a company name for a clean display label.
 _NAME_DROP = {"AG", "SE", "N", "V", "NV", "SA", "S.A.", "PLC", "AB", "ASA", "OYJ", "SPA",
@@ -623,7 +624,16 @@ def render_candidates_overview_card(candidates: list[Candidate], out_path: str) 
     draw = ImageDraw.Draw(img)
     y = _lt_head(draw, "WATCHLIST", "Auf der Watchlist heute",
                  [("Charttechnik + Fundamental", _BRAND),
-                  ("  ·  verschiedene Branchen", _LT_GREY)]) + 20
+                  ("  ·  verschiedene Branchen", _LT_GREY)]) + 8
+
+    # info banner: the detail analyses go live at the per-stock times shown on the right
+    info = "Detailanalysen erscheinen heute zur angegebenen Uhrzeit in der Story"
+    inf = _font(24, bold=True)
+    bx1 = min(W - 60, 60 + int(draw.textlength(info, font=inf)) + 96)
+    draw.rounded_rectangle((60, y, bx1, y + 60), radius=30, fill=_LT_INFO)
+    draw.ellipse((90, y + 22, 106, y + 38), fill=_BRAND)
+    draw.text((122, y + 16), info, font=inf, fill=_BRAND)
+    y += 60 + 26
 
     # expected time each stock's detail-analysis story goes live (EU vs US posting slots,
     # in list order — matches how publish_next_candidate_group posts them)
@@ -640,42 +650,40 @@ def render_candidates_overview_card(candidates: list[Candidate], out_path: str) 
 
     for c in candidates[:5]:
         m = c.metrics
-        ch = 160
+        ch = 190
         draw.rounded_rectangle((60, y, W - 60, y + ch), radius=24, fill=_LT_CARD)
-        bx = _dark_badge(draw, 96, y + 32, m.market)
-        tx = bx + 30
-        nf = _font(44, bold=True)
+        _dark_badge(draw, 96, y + 34, m.market)
+        tx = 196
+        nf = _font(42, bold=True)
         name = _truncate_px(draw, _clean_name(m.name), nf, 360)
-        draw.text((tx, y + 26), name, font=nf, fill=_LT_INK)
-        nx = tx + draw.textlength(name, font=nf) + 18
-        tkf = _font(28, bold=True)
-        draw.text((nx, y + 38), m.ticker, font=tkf, fill=_BRAND)
-        sx = nx + draw.textlength(m.ticker, font=tkf) + 16
-        sf = _font(26)   # sector only if it clearly fits before the teaser (else omit, no "…")
-        if draw.textlength(m.sector, font=sf) <= 720 - sx:
-            draw.text((sx, y + 40), m.sector, font=sf, fill=_LT_GREY)
-
-        # teaser (right): when the detail analysis goes live
-        t = times.get(id(c), "")
-        if t:
-            lf2 = _font(22)
-            draw.text((992 - draw.textlength("Detailanalyse", font=lf2), y + 40),
-                      "Detailanalyse", font=lf2, fill=_LT_GREY)
-            tf2 = _font(32, bold=True)
-            draw.text((992 - draw.textlength(f"{t} Uhr", font=tf2), y + 68),
-                      f"{t} Uhr", font=tf2, fill=_BRAND)
+        draw.text((tx, y + 28), name, font=nf, fill=_LT_INK)
+        nx = tx + draw.textlength(name, font=nf) + 16
+        tkf = _font(27, bold=True)
+        draw.text((nx, y + 40), m.ticker, font=tkf, fill=_BRAND)
+        sf = _font(26)
+        draw.text((tx, y + 82), _truncate_px(draw, m.sector, sf, 500), font=sf, fill=_LT_GREY)
 
         c_lvl, c_lab = ind.tendency(m.tech_score, "chart")
         f_lvl, f_lab = ind.tendency(m.fund_score, "fund")
-        yy = y + 104
-        lf = _font(28, bold=True)
-        draw.ellipse((tx, yy, tx + 22, yy + 22), fill=_LIGHT[c_lvl])
-        draw.text((tx + 34, yy - 4), f"Chart: {c_lab}", font=lf, fill=_LT_INK)
-        x2 = tx + 34 + draw.textlength(f"Chart: {c_lab}", font=lf) + 44
-        draw.ellipse((x2, yy, x2 + 22, yy + 22), fill=_LIGHT[f_lvl])
-        draw.text((x2 + 34, yy - 4), f"Fundamental: {f_lab}", font=lf, fill=_LT_INK)
+        yy = y + 132
+        lf = _font(27, bold=True)
+        draw.ellipse((tx, yy, tx + 20, yy + 20), fill=_LIGHT[c_lvl])
+        draw.text((tx + 30, yy - 5), f"Chart: {c_lab}", font=lf, fill=_LT_INK)
+        x2 = tx + 30 + draw.textlength(f"Chart: {c_lab}", font=lf) + 40
+        draw.ellipse((x2, yy, x2 + 20, yy + 20), fill=_LIGHT[f_lvl])
+        draw.text((x2 + 30, yy - 5), f"Fundamental: {f_lab}", font=lf, fill=_LT_INK)
+
+        # right column: "ANALYSE IN DEINER STORY" + big time
+        t = times.get(id(c), "")
+        if t:
+            llf = _font(20, bold=True)
+            for i, ln in enumerate(("ANALYSE IN", "DEINER STORY")):
+                draw.text((980 - draw.textlength(ln, font=llf), y + 36 + i * 26),
+                          ln, font=llf, fill=_LT_GREY)
+            tf = _font(54, bold=True)
+            draw.text((980 - draw.textlength(t, font=tf), y + 100), t, font=tf, fill=_BRAND)
         y += ch + 18
-        if y > H - 240:
+        if y > H - 210:
             break
     _lt_footer(draw)
     return _save(img, out_path)
