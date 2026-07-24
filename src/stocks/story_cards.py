@@ -504,6 +504,31 @@ _LT_GREY = (140, 148, 156)    # muted grey (sector, footer)
 _LT_BADGE = (26, 28, 32)      # dark US/EU badge
 _LT_PILL = (233, 231, 224)    # light grey pill (vorbörslich)
 
+# Trailing tokens dropped from a company name for a clean display label.
+_NAME_DROP = {"AG", "SE", "N", "V", "NV", "SA", "S.A.", "PLC", "AB", "ASA", "OYJ", "SPA",
+              "INC", "INC.", "CORP", "CORP.", "CORPORATION", "CO", "CO.", "COMPANY",
+              "INTERNATIONAL", "COMMUNICATIONS", "HOLDING", "HOLDINGS", "GROUP",
+              "ACT.A", "ACT", "A", "THE", "LTD", "LTD.", "LIMITED"}
+
+
+def _clean_name(name: str) -> str:
+    """Drop legal/share-class suffixes and de-shout ALL-CAPS names for a clean label
+    (e.g. 'VOLKSWAGEN AG V' → 'Volkswagen', 'BNP PARIBAS ACT.A' → 'BNP Paribas')."""
+    toks = name.replace(",", " ").split()
+    while len(toks) > 1 and toks[-1].upper() in _NAME_DROP:
+        toks.pop()
+    if name.isupper():   # keep short acronyms upper (BNP), title-case the rest
+        toks = [t if (len(t) <= 3 and t.isalpha()) else t.capitalize() for t in toks]
+    return " ".join(toks)
+
+
+def _truncate_px(draw, text: str, font, maxw: int) -> str:
+    if draw.textlength(text, font=font) <= maxw:
+        return text
+    while text and draw.textlength(text + "…", font=font) > maxw:
+        text = text[:-1]
+    return text + "…" if text else text
+
 
 def _brandmark(draw, x: int, y: int) -> None:
     """Small radar icon + 'RENDITE RADAR' wordmark (dark, on the light template)."""
@@ -532,25 +557,28 @@ def _dark_badge(draw, x: int, y: int, market: str) -> int:
 
 
 def _lt_footer(draw) -> None:
-    draw.text((44, H - 66), "Keine Anlageberatung · keine Kauf-/Verkaufsempfehlung · Werbung",
-              font=_font(24), fill=_LT_GREY)
-    hf = _font(24, bold=True)
-    draw.text((W - 44 - draw.textlength(config.BRAND_HANDLE, font=hf), H - 66),
+    draw.text((44, H - 62), "Keine Anlageberatung · keine Kauf-/Verkaufsempfehlung · Werbung",
+              font=_font(20), fill=_LT_GREY)
+    hf = _font(22, bold=True)
+    draw.text((W - 44 - draw.textlength(config.BRAND_HANDLE, font=hf), H - 63),
               config.BRAND_HANDLE, font=hf, fill=_LT_INK)
 
 
 def _lt_head(draw, pill_text: str, title: str, sub_segments: list[tuple]) -> int:
     """Shared header: radar wordmark (left) + blue pill (right) + big title + subtitle.
-    Returns the y below the subtitle. Kept clear of Instagram's top profile overlay."""
+    Fixed headline size so short titles stay on one line and long ones wrap (like the
+    templates). Returns the y below the subtitle; kept clear of IG's top profile overlay."""
     _brandmark(draw, 60, 172)
     _pill_right(draw, W - 56, 170, pill_text, _BRAND, (255, 255, 255), 28)
-    y = _draw_fit(draw, title, (60, 244, W - 70, 470), _LT_INK, 90, 60, bold=True)
-    x = 62
-    sf = _font(34, bold=True)
+    hf, lh, y = _font(76, bold=True), 88, 252
+    for line in _wrap_lines_px(draw, title, hf, W - 130):
+        draw.text((60, y), line, font=hf, fill=_LT_INK)
+        y += lh
+    x, sf = 62, _font(30, bold=True)
     for text, color in sub_segments:
-        draw.text((x, y + 8), text, font=sf, fill=color)
+        draw.text((x, y + 6), text, font=sf, fill=color)
         x += draw.textlength(text, font=sf)
-    return y + 70
+    return y + 60
 
 
 def render_earnings_card(items: list[EarningsItem], out_path: str, day_label: str) -> str:
@@ -567,7 +595,7 @@ def render_earnings_card(items: list[EarningsItem], out_path: str, day_label: st
 
     nf = _font(46, bold=True)
     for it in items[:7]:
-        lines = _wrap_lines_px(draw, it.name or it.ticker, nf, 560)[:2]
+        lines = _wrap_lines_px(draw, _clean_name(it.name) or it.ticker, nf, 560)[:2]
         ch = 150 if len(lines) == 1 else 202
         draw.rounded_rectangle((60, y, W - 60, y + ch), radius=24, fill=_LT_CARD)
         draw.rounded_rectangle((62, y + 18, 74, y + ch - 18), radius=6, fill=_BRAND)   # accent bar
@@ -595,7 +623,7 @@ def render_candidates_overview_card(candidates: list[Candidate], out_path: str) 
     draw = ImageDraw.Draw(img)
     y = _lt_head(draw, "WATCHLIST", "Auf der Watchlist heute",
                  [("Charttechnik + Fundamental", _BRAND),
-                  ("   ·   verschiedene Branchen", _LT_GREY)]) + 20
+                  ("  ·  verschiedene Branchen", _LT_GREY)]) + 20
 
     for c in candidates[:5]:
         m = c.metrics
@@ -604,13 +632,14 @@ def render_candidates_overview_card(candidates: list[Candidate], out_path: str) 
         bx = _dark_badge(draw, 96, y + 30, m.market)
         tx = bx + 30
         nf = _font(44, bold=True)
-        name = m.name[:18]
+        name = _truncate_px(draw, _clean_name(m.name), nf, 380)
         draw.text((tx, y + 28), name, font=nf, fill=_LT_INK)
         nx = tx + draw.textlength(name, font=nf) + 18
         tkf = _font(28, bold=True)
         draw.text((nx, y + 40), m.ticker, font=tkf, fill=_BRAND)
         sx = nx + draw.textlength(m.ticker, font=tkf) + 16
-        draw.text((sx, y + 42), m.sector[:16], font=_font(26), fill=_LT_GREY)
+        sf = _font(26)
+        draw.text((sx, y + 42), _truncate_px(draw, m.sector, sf, max(40, 992 - sx)), font=sf, fill=_LT_GREY)
         c_lvl, c_lab = ind.tendency(m.tech_score, "chart")
         f_lvl, f_lab = ind.tendency(m.fund_score, "fund")
         yy = y + 96
