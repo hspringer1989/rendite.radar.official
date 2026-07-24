@@ -83,6 +83,27 @@ def cmd_feedpost() -> None:
     print(f"Feed-Beitrag #{pid} erstellt und in die Review-Queue gestellt.")
 
 
+def cmd_stockreel(ticker: str, topic: str) -> None:
+    from src.stocks.stock_reel import build_stock_reel
+
+    async def _run() -> int | None:
+        rid = await asyncio.to_thread(build_stock_reel, ticker, topic)
+        if rid is None:
+            return None
+        from src.review.telegram_bot import review_configured, send_for_review
+
+        if review_configured():
+            with session_scope() as session:
+                reel = session.get(ReelRow, rid)
+            await send_for_review(rid, reel.video_path, reel.caption)
+        return rid
+
+    rid = asyncio.run(_run())
+    if rid is None:
+        raise SystemExit("Aktien-Reel konnte nicht erstellt werden (siehe Logs)")
+    print(f"Aktien-Reel #{rid} erstellt und in die Review-Queue gestellt.")
+
+
 def cmd_dividendpost() -> None:
     from src.feedposts.dividend import build_dividend_post
     from src.feedposts.pipeline import send_feed_for_review
@@ -398,6 +419,9 @@ def main() -> None:
     sub.add_parser("generate")
     sub.add_parser("stocks")
     sub.add_parser("feedpost")
+    stockreel = sub.add_parser("stockreel")
+    stockreel.add_argument("--ticker", required=True)
+    stockreel.add_argument("--topic", default="")
     sub.add_parser("dividendpost")
     sub.add_parser("verify-ig")
     sub.add_parser("run")
@@ -419,6 +443,8 @@ def main() -> None:
         cmd_stocks()
     elif args.command == "feedpost":
         cmd_feedpost()
+    elif args.command == "stockreel":
+        cmd_stockreel(args.ticker, args.topic)
     elif args.command == "dividendpost":
         cmd_dividendpost()
     elif args.command == "verify-ig":

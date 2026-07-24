@@ -59,6 +59,9 @@ async def send_for_review(reel_id: int, video_path: str, caption: str) -> None:
                 video=video,
                 caption=text[:1024],
                 reply_markup=_keyboard(reel_id),
+                width=config.REEL_WIDTH,
+                height=config.REEL_HEIGHT,
+                supports_streaming=True,
                 read_timeout=120,
                 write_timeout=300,
             )

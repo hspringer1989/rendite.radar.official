@@ -71,10 +71,19 @@ def render_reel(
     filters: list[str] = []
     labels: list[str] = []
 
+    img_exts = (".jpg", ".jpeg", ".png", ".webp", ".bmp")
     for i, ((start, end), clip) in enumerate(zip(times, broll_paths)):
         duration = end - start
         idx = len(labels)  # inputs are appended in segment order
-        if clip:
+        if clip and Path(clip).suffix.lower() in img_exts:
+            # still image → loop it for the whole segment (no tpad needed, -t sets length)
+            cmd += ["-loop", "1", "-t", f"{duration:.3f}", "-i", clip]
+            filters.append(
+                f"[{idx}:v]scale={w}:{h}:force_original_aspect_ratio=increase,"
+                f"crop={w}:{h},setsar=1,fps=30,"
+                f"trim=duration={duration:.3f},setpts=PTS-STARTPTS[v{i}]"
+            )
+        elif clip:
             cmd += ["-i", clip]
             filters.append(
                 f"[{idx}:v]scale={w}:{h}:force_original_aspect_ratio=increase,"
