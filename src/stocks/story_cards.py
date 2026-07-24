@@ -649,7 +649,7 @@ def render_candidates_overview_card(candidates: list[Candidate], out_path: str) 
             times[id(c)] = us[min(ui, len(us) - 1)] if us else ""
             ui += 1
 
-    nf, tkf, sf, lf = _font(42, bold=True), _font(27, bold=True), _font(26), _font(27, bold=True)
+    nf, tkf, sf, lf = _font(42, bold=True), _font(27, bold=True), _font(26), _font(24, bold=True)
     for c in candidates[:5]:
         m = c.metrics
         ch = 196
@@ -676,11 +676,11 @@ def render_candidates_overview_card(candidates: list[Candidate], out_path: str) 
             draw.text((tx + w_name + 18, ty + 12), m.ticker, font=tkf, fill=_BRAND)
             draw.text((tx, ty + 50), _truncate_px(draw, m.sector, sf, 520), font=sf, fill=_LT_GREY)
             ay = ty + 100
-        draw.ellipse((tx, ay, tx + 20, ay + 20), fill=_LIGHT[c_lvl])
-        draw.text((tx + 30, ay - 5), f"Chart: {c_lab}", font=lf, fill=_LT_INK)
-        x2 = tx + 30 + draw.textlength(f"Chart: {c_lab}", font=lf) + 40
-        draw.ellipse((x2, ay, x2 + 20, ay + 20), fill=_LIGHT[f_lvl])
-        draw.text((x2 + 30, ay - 5), f"Fundamental: {f_lab}", font=lf, fill=_LT_INK)
+        draw.ellipse((tx, ay, tx + 19, ay + 19), fill=_LIGHT[c_lvl])
+        draw.text((tx + 28, ay - 4), f"Chart: {c_lab}", font=lf, fill=_LT_INK)
+        x2 = tx + 28 + draw.textlength(f"Chart: {c_lab}", font=lf) + 28
+        draw.ellipse((x2, ay, x2 + 19, ay + 19), fill=_LIGHT[f_lvl])
+        draw.text((x2 + 28, ay - 4), f"Fundamental: {f_lab}", font=lf, fill=_LT_INK)
 
         # right time box: light beige rounded box with "ANALYSE IN MEINER STORY" + big time
         t = times.get(id(c), "")
