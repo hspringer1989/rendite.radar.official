@@ -62,7 +62,8 @@ def _spoken_de(text: str, ticker: str, name: str) -> str:
     for code, word in _CURRENCY_SPOKEN.items():
         text = re.sub(rf"\b{code}\b", word, text)
     text = text.replace("$", " Dollar").replace("€", " Euro").replace("%", " Prozent")
-    text = re.sub(r"(\d+),(\d+)", r"\1 Komma \2", text)   # 209,38 → "209 Komma 38"
+    text = re.sub(r"(\d+),(\d+)", r"\1 Komma \2", text)          # 209,38 → "209 Komma 38"
+    text = re.sub(r"(\d+)\.(\d{1,2})\b", r"\1 Komma \2", text)   # score 0.72 → "0 Komma 72"
     return re.sub(r"\s+", " ", text).strip()
 
 
