@@ -504,6 +504,7 @@ _LT_GREY = (140, 148, 156)    # muted grey (sector, footer)
 _LT_BADGE = (26, 28, 32)      # dark US/EU badge
 _LT_PILL = (233, 231, 224)    # light grey pill (vorbörslich)
 _LT_INFO = (230, 240, 251)    # light-blue info banner
+_LT_TIMEBOX = (238, 234, 226)  # beige box behind the "ANALYSE IN MEINER STORY" time
 
 # Trailing tokens dropped from a company name for a clean display label.
 _NAME_DROP = {"AG", "SE", "N", "V", "NV", "SA", "S.A.", "PLC", "AB", "ASA", "OYJ", "SPA",
@@ -648,41 +649,52 @@ def render_candidates_overview_card(candidates: list[Candidate], out_path: str) 
             times[id(c)] = us[min(ui, len(us) - 1)] if us else ""
             ui += 1
 
+    nf, tkf, sf, lf = _font(42, bold=True), _font(27, bold=True), _font(26), _font(27, bold=True)
     for c in candidates[:5]:
         m = c.metrics
-        ch = 190
-        draw.rounded_rectangle((60, y, W - 60, y + ch), radius=24, fill=_LT_CARD)
-        _dark_badge(draw, 96, y + 34, m.market)
+        ch = 196
+        draw.rounded_rectangle((60, y, W - 60, y + ch), radius=28, fill=_LT_CARD)
+        _dark_badge(draw, 92, y + ch // 2 - 30, m.market)   # badge vertically centered
         tx = 196
-        nf = _font(42, bold=True)
         name = _truncate_px(draw, _clean_name(m.name), nf, 360)
-        draw.text((tx, y + 28), name, font=nf, fill=_LT_INK)
-        nx = tx + draw.textlength(name, font=nf) + 16
-        tkf = _font(27, bold=True)
-        draw.text((nx, y + 40), m.ticker, font=tkf, fill=_BRAND)
-        sf = _font(26)
-        draw.text((tx, y + 82), _truncate_px(draw, m.sector, sf, 500), font=sf, fill=_LT_GREY)
-
+        w_name = draw.textlength(name, font=nf)
+        w_tk = draw.textlength(m.ticker, font=tkf)
+        w_sec = draw.textlength(m.sector, font=sf)
         c_lvl, c_lab = ind.tendency(m.tech_score, "chart")
         f_lvl, f_lab = ind.tendency(m.fund_score, "fund")
-        yy = y + 132
-        lf = _font(27, bold=True)
-        draw.ellipse((tx, yy, tx + 20, yy + 20), fill=_LIGHT[c_lvl])
-        draw.text((tx + 30, yy - 5), f"Chart: {c_lab}", font=lf, fill=_LT_INK)
-        x2 = tx + 30 + draw.textlength(f"Chart: {c_lab}", font=lf) + 40
-        draw.ellipse((x2, yy, x2 + 20, yy + 20), fill=_LIGHT[f_lvl])
-        draw.text((x2 + 30, yy - 5), f"Fundamental: {f_lab}", font=lf, fill=_LT_INK)
+        inline = (w_name + 18 + w_tk + 22 + w_sec) <= (760 - tx)   # sector fits on the name line?
 
-        # right column: "ANALYSE IN DEINER STORY" + big time
+        if inline:
+            ty = y + (ch - 96) // 2
+            draw.text((tx, ty), name, font=nf, fill=_LT_INK)
+            draw.text((tx + w_name + 18, ty + 12), m.ticker, font=tkf, fill=_BRAND)
+            draw.text((tx + w_name + 18 + w_tk + 22, ty + 14), m.sector, font=sf, fill=_LT_GREY)
+            ay = ty + 66
+        else:
+            ty = y + (ch - 130) // 2
+            draw.text((tx, ty), name, font=nf, fill=_LT_INK)
+            draw.text((tx + w_name + 18, ty + 12), m.ticker, font=tkf, fill=_BRAND)
+            draw.text((tx, ty + 50), _truncate_px(draw, m.sector, sf, 520), font=sf, fill=_LT_GREY)
+            ay = ty + 100
+        draw.ellipse((tx, ay, tx + 20, ay + 20), fill=_LIGHT[c_lvl])
+        draw.text((tx + 30, ay - 5), f"Chart: {c_lab}", font=lf, fill=_LT_INK)
+        x2 = tx + 30 + draw.textlength(f"Chart: {c_lab}", font=lf) + 40
+        draw.ellipse((x2, ay, x2 + 20, ay + 20), fill=_LIGHT[f_lvl])
+        draw.text((x2 + 30, ay - 5), f"Fundamental: {f_lab}", font=lf, fill=_LT_INK)
+
+        # right time box: light beige rounded box with "ANALYSE IN MEINER STORY" + big time
         t = times.get(id(c), "")
         if t:
-            llf = _font(20, bold=True)
-            for i, ln in enumerate(("ANALYSE IN", "DEINER STORY")):
-                draw.text((980 - draw.textlength(ln, font=llf), y + 36 + i * 26),
+            bx0, bx1 = 788, W - 88
+            draw.rounded_rectangle((bx0, y + 28, bx1, y + ch - 28), radius=18, fill=_LT_TIMEBOX)
+            cx = (bx0 + bx1) // 2
+            llf = _font(19, bold=True)
+            for i, ln in enumerate(("ANALYSE IN", "MEINER STORY")):
+                draw.text((cx - draw.textlength(ln, font=llf) / 2, y + 52 + i * 24),
                           ln, font=llf, fill=_LT_GREY)
-            tf = _font(54, bold=True)
-            draw.text((980 - draw.textlength(t, font=tf), y + 100), t, font=tf, fill=_BRAND)
-        y += ch + 18
+            tf = _font(48, bold=True)
+            draw.text((cx - draw.textlength(t, font=tf) / 2, y + 112), t, font=tf, fill=_BRAND)
+        y += ch + 20
         if y > H - 210:
             break
     _lt_footer(draw)
