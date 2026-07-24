@@ -340,8 +340,12 @@ def render_analysis_card(c: Candidate, out_path: str) -> str:
         draw.text((60, y + 8), c.category, font=_font(26, bold=True), fill=(255, 255, 255))
         y += 60
     x = _market_badge(draw, 40, y + 10, m.market)
-    draw.text((x, y), m.ticker, font=_font(54, bold=True), fill=_FG)
-    draw.text((x, y + 62), f"{m.name} · {m.sector}"[:38], font=_font(26), fill=_HEAD_SUB)
+    name = _truncate_px(draw, _clean_name(m.name), _font(54, bold=True), W - x - 56)
+    draw.text((x, y), name, font=_font(54, bold=True), fill=_FG)         # clean company name = heading
+    tf = _font(26, bold=True)
+    draw.text((x, y + 64), m.ticker, font=tf, fill=_BRAND)               # ticker small below
+    draw.text((x + draw.textlength(m.ticker, font=tf), y + 64),
+              f"  ·  {m.sector}", font=_font(26), fill=_HEAD_SUB)
     y += 122
 
     # ── Card 01 · Fundamental ────────────────────────────────────────────────
