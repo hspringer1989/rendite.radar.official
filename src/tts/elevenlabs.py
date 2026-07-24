@@ -41,22 +41,33 @@ class ElevenLabsTTS:
             raise TTSBudgetExceeded("TTS-Tagesbudget erschöpft")
 
         url = f"{_API_BASE}/text-to-speech/{config.ELEVENLABS_VOICE_ID}/with-timestamps"
-        response = httpx.post(
-            url,
-            headers={"xi-api-key": config.ELEVENLABS_API_KEY},
-            json={
-                "text": text,
-                "model_id": config.ELEVENLABS_MODEL,
-                "output_format": "mp3_44100_128",
-                "voice_settings": {
-                    "stability": config.ELEVENLABS_STABILITY,
-                    "similarity_boost": config.ELEVENLABS_SIMILARITY,
-                    "style": config.ELEVENLABS_STYLE,
-                    "use_speaker_boost": True,
+        voice_settings = {
+            "stability": config.ELEVENLABS_STABILITY,
+            "similarity_boost": config.ELEVENLABS_SIMILARITY,
+            "style": config.ELEVENLABS_STYLE,
+            "use_speaker_boost": True,
+        }
+        if abs(config.ELEVENLABS_SPEED - 1.0) > 1e-6:
+            voice_settings["speed"] = config.ELEVENLABS_SPEED
+
+        def _call(settings: dict) -> httpx.Response:
+            return httpx.post(
+                url,
+                headers={"xi-api-key": config.ELEVENLABS_API_KEY},
+                json={
+                    "text": text,
+                    "model_id": config.ELEVENLABS_MODEL,
+                    "output_format": "mp3_44100_128",
+                    "voice_settings": settings,
                 },
-            },
-            timeout=120.0,
-        )
+                timeout=120.0,
+            )
+
+        response = _call(voice_settings)
+        if response.status_code in (400, 422) and "speed" in voice_settings:
+            # older models reject the speed knob — retry without it rather than failing
+            voice_settings.pop("speed")
+            response = _call(voice_settings)
         response.raise_for_status()
         data = response.json()
 

@@ -33,6 +33,7 @@ ELEVENLABS_MODEL = _get("ELEVENLABS_MODEL", "eleven_multilingual_v2")
 ELEVENLABS_STABILITY = float(_get("ELEVENLABS_STABILITY", "0.42"))
 ELEVENLABS_SIMILARITY = float(_get("ELEVENLABS_SIMILARITY", "0.8"))
 ELEVENLABS_STYLE = float(_get("ELEVENLABS_STYLE", "0.35"))
+ELEVENLABS_SPEED = float(_get("ELEVENLABS_SPEED", "1.0"))  # 0.7–1.2; >1 = faster, more fluent
 TTS_DAILY_BUDGET_CHARS = int(_get("TTS_DAILY_BUDGET_CHARS", "15000"))
 
 # ── Trend collectors ──────────────────────────────────────────────────────
