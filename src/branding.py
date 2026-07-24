@@ -12,8 +12,8 @@ import textwrap
 BLUE = (35, 134, 209)        # #2386D1 — primary brand accent (headers, badges, lines)
 BLUE_LIGHT = (125, 185, 232)  # secondary blue (EU badge, SMA overlay)
 BLUE_DEEP = (6, 74, 126)
-BG = (24, 38, 30)            # dark template background tone
-CARD = (34, 50, 44)          # slightly lifted panel
+BG = (12, 36, 64)            # dark logo-blue background (#0C2440) — brand blue-on-dark
+CARD = (24, 54, 90)          # slightly lifted blue panel (#1A365A)
 FG = (238, 242, 245)
 MUTED = (150, 165, 175)
 

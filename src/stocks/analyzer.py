@@ -32,7 +32,8 @@ Referenz zur Risikomarke (Stop) und Potenzialmarke (Ziel).
   · Fundamental: KGV (teuer/günstig, grob <15 günstig, >30 teuer), Umsatzwachstum, Gewinnmarge.
 - Formuliere eine klare KERNAUSSAGE (These), nicht nur Adjektive. \
 Schlecht: "solide bewertet". Gut: "Mit KGV 11 klar günstiger als der Gesamtmarkt, das Umsatzplus von 15% stützt das."
-- Dicht und knapp: 2–3 Sätze je Card. Alltagsnah, Fachbegriffe in einem Halbsatz erklärt.
+- SEHR KNAPP: MAXIMAL 2 kurze Sätze je Card (zusammen ~25 Wörter). Ein starker, konkreter \
+Punkt schlägt drei schwache. Alltagsnah, Fachbegriffe in einem Halbsatz erklärt.
 
 STRIKTE COMPLIANCE (BaFin/MAR, keine Ausnahmen):
 - Beobachtend, KEINE Kauf-/Verkaufsempfehlung ("Der Chart zeigt…", NIEMALS "Kaufen"/"Einsteigen").
@@ -55,9 +56,9 @@ Gib genau diese JSON-Struktur zurück:
   "candidates": [
     {{
       "ticker": "TICK",
-      "chart": "GENAU 2 dichte Sätze mit Zahlen: Trendstruktur (Kurs vs. SMA20/SMA50) und RSI-Lage (Stop/Ziel stehen separat)",
-      "fundamental": "2-3 dichte Sätze mit Zahlen: KGV (teuer/günstig), Wachstum, Marge — was das konkret heißt",
-      "overall": "1-2 Sätze: passen Chart und Fundamental zusammen? Wichtigste Chance und wichtigstes Risiko"
+      "chart": "1-2 KURZE Sätze (~25 Wörter) mit Zahlen: Trendstruktur (Kurs vs. SMA20/SMA50) und RSI-Lage (Stop/Ziel stehen separat)",
+      "fundamental": "1-2 KURZE Sätze (~28 Wörter) mit Zahlen: KGV (teuer/günstig) plus Wachstum ODER Marge — was das konkret heißt",
+      "overall": "1 KURZER Satz (~24 Wörter): passen Chart und Fundamental zusammen? Wichtigste Chance UND Risiko knapp"
     }}
   ]
 }}"""

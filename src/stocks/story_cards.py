@@ -21,6 +21,8 @@ from src.models import Candidate, EarningsItem
 from src.stocks import indicators as ind
 
 W, H = 1080, 1920
+_TOP = 250          # start content below Instagram's profile-name overlay at the top
+_MARGIN = 60        # left/right content margin (container spans 60 … W-60)
 _BG = branding.BG
 _FG = branding.FG
 _MUTED = branding.MUTED
@@ -57,6 +59,36 @@ def _wrap(draw, text: str, font, x: int, y: int, width_chars: int, fill, line_h:
         for line in textwrap.wrap(para, width=width_chars) or [""]:
             draw.text((x, y), line, font=font, fill=fill)
             y += line_h
+    return y
+
+
+def _wrap_px(draw, text: str, font, x: int, y: int, right: int, fill, line_h: int,
+             max_lines: int | None = None) -> int:
+    """Wrap text to the FULL container width (x … right) by measuring pixels, so lines
+    reach the right edge instead of breaking early (no ugly right-hand indent). With
+    `max_lines`, extra text is trimmed and the last visible line ends with an ellipsis."""
+    max_w = right - x
+    lines: list[str] = []
+    for para in text.split("\n"):
+        line = ""
+        for word in para.split():
+            trial = f"{line} {word}".strip()
+            if line and draw.textlength(trial, font=font) > max_w:
+                lines.append(line)
+                line = word
+            else:
+                line = trial
+        if line:
+            lines.append(line)
+    if max_lines is not None and len(lines) > max_lines:
+        lines = lines[:max_lines]
+        last = lines[-1]
+        while last and draw.textlength(last + " …", font=font) > max_w:
+            last = last.rsplit(" ", 1)[0] if " " in last else last[:-1]
+        lines[-1] = last + " …"
+    for line in lines:
+        draw.text((x, y), line, font=font, fill=fill)
+        y += line_h
     return y
 
 
@@ -98,8 +130,6 @@ def _save(img, out_path: str) -> str:
     return out_path
 
 
-def _page_tag(draw, ticker: str, step: str) -> None:
-    draw.text((W - 200, 84), step, font=_font(30, bold=True), fill=_MUTED)
 
 
 def _signal_badge(draw, x: int, y: int, level: str, label: str, big: bool = False) -> None:
@@ -162,42 +192,211 @@ def _draw_chart(draw, box, closes, stop, take, entry, currency) -> None:
     draw.text((ax0 + 330, ly), "— 50-Tage", font=_font(22), fill=_MUTED)
 
 
-# ── Candidate cards (3 per stock) ──────────────────────────────────────────
-def _card_header(draw, c: Candidate, subtitle: str, step: str):
+# ── Combined single analysis card (template "Story-Card-selection") ─────────
+# Design: near-black page, two light cards (Fundamental figures + Charttechnik chart),
+# a dark FAZIT strip with the overall traffic light. Everything on ONE story.
+_PAGE = (10, 14, 22)          # near-black page background
+_CARD_LT = (243, 241, 235)    # cream card
+_TILE = (231, 229, 221)       # stat tile
+_INK = (20, 26, 34)           # dark text on light card
+_INK_MUT = (108, 118, 130)    # muted dark text
+_CHIP = (24, 28, 36)          # dark number chip / fazit strip
+_CHARTBG = (16, 22, 32)       # dark chart panel inside the light card
+
+
+def _tint(color, amount: float = 0.82):
+    """Light pastel tint of a signal colour (for the ZIEL/STOP value boxes)."""
+    return tuple(int(c + (255 - c) * amount) for c in color)
+
+
+def _ampel_pill(draw, right_x: int, y: int, level: str) -> None:
+    """Dark rounded pill with three dots; the dot for `level` is lit in its signal colour."""
+    w, h = 132, 54
+    x = right_x - w
+    draw.rounded_rectangle((x, y, x + w, y + h), radius=27, fill=_CHIP)
+    colors = {"neg": _RED, "neu": _AMBER, "pos": _ACCENT}
+    for i, lv in enumerate(("neg", "neu", "pos")):
+        cx, cy = x + 30 + i * 36, y + h // 2
+        col = colors[lv] if lv == level else (74, 82, 94)
+        draw.ellipse((cx - 12, cy - 12, cx + 12, cy + 12), fill=col)
+
+
+def _section_title(draw, x: int, y: int, num: str, title: str, level: str) -> None:
+    draw.rounded_rectangle((x, y, x + 54, y + 54), radius=12, fill=_CHIP)
+    draw.text((x + 15, y + 8), num, font=_font(30, bold=True), fill=(255, 255, 255))
+    draw.text((x + 74, y + 6), title, font=_font(44, bold=True), fill=_INK)
+    _ampel_pill(draw, W - 76, y, level)
+
+
+def _stat_tile(draw, box, value: str, label: str) -> None:
+    x0, y0, x1, _ = box
+    draw.rounded_rectangle(box, radius=16, fill=_TILE)
+    cx = (x0 + x1) // 2
+    vf = _font(44, bold=True)
+    draw.text((cx - draw.textlength(value, font=vf) / 2, y0 + 20), value, font=vf, fill=_INK)
+    lf = _font(23)
+    draw.text((cx - draw.textlength(label, font=lf) / 2, y0 + 80), label, font=lf, fill=_INK_MUT)
+
+
+def _val_box(draw, x: int, y: int, label: str, value: str, color) -> None:
+    w, h = 218, 122
+    draw.rounded_rectangle((x, y, x + w, y + h), radius=16, fill=_tint(color))
+    draw.text((x + 20, y + 16), label, font=_font(24, bold=True), fill=color)
+    draw.text((x + 20, y + 54), value, font=_font(42, bold=True), fill=color)
+
+
+def _dashed_hline(draw, x0: int, x1: int, y: float, color, dash: int = 16, gap: int = 12) -> None:
+    x = x0
+    while x < x1:
+        draw.line((x, y, min(x + dash, x1), y), fill=color, width=3)
+        x += dash + gap
+
+
+def _mini_chart(draw, box, m, c) -> None:
+    x0, y0, x1, y1 = box
+    draw.rounded_rectangle(box, radius=18, fill=_CHARTBG)
+    closes = m.history_closes
+    if not closes or len(closes) < 2:
+        draw.text((x0 + 24, y0 + 24), "Chartdaten n/a", font=_font(26), fill=_MUTED)
+        return
+    pad = 26
+    ax0, ay0, ax1, ay1 = x0 + pad, y0 + pad + 6, x1 - pad, y1 - pad
+    lo, hi = min(min(closes), c.stop_loss), max(max(closes), c.take_profit)
+    if hi <= lo:
+        hi = lo + 1.0
+    def X(i): return ax0 + (ax1 - ax0) * i / (len(closes) - 1)
+    def Y(v): return ay1 - (ay1 - ay0) * (v - lo) / (hi - lo)
+    _dashed_hline(draw, ax0, ax1, Y(c.take_profit), _ACCENT)
+    _dashed_hline(draw, ax0, ax1, Y(c.stop_loss), _RED)
+    draw.text((ax0 + 2, Y(c.take_profit) - 30), "ZIEL", font=_font(22, bold=True), fill=_ACCENT)
+    draw.text((ax0 + 2, Y(c.stop_loss) + 6), "STOP", font=_font(22, bold=True), fill=_RED)
+    pts = [(X(i), Y(v)) for i, v in enumerate(closes)]
+    draw.line(pts, fill=_BRAND, width=5)
+    ex, ey = pts[-1]
+    draw.ellipse((ex - 9, ey - 9, ex + 9, ey + 9), fill=(255, 255, 255))
+
+
+_FAZIT_HEADING = {"pos": "Chancen überwiegen", "neu": "Ausgewogenes Bild", "neg": "Risiken überwiegen"}
+
+
+def render_analysis_card(c: Candidate, out_path: str) -> str:
+    """ONE story card with Fundamental + Charttechnik + Fazit (template design)."""
+    from PIL import Image, ImageDraw
+
     m = c.metrics
-    if c.category:  # e.g. "TREND-AKTIE" — sits below IG's story profile overlay
-        label = c.category
-        w = draw.textlength(label, font=_font(30, bold=True))
-        draw.rounded_rectangle((60, 120, 60 + w + 48, 176), radius=16, fill=_BRAND)
-        draw.text((84, 130), label, font=_font(30, bold=True), fill=(255, 255, 255))
-    x = _market_badge(draw, 60, 214, m.market)
-    draw.text((x, 190), m.ticker, font=_font(68, bold=True), fill=_FG)
-    draw.text((60, 296), f"{m.name}  ·  {m.sector}", font=_font(32), fill=_MUTED)
-    draw.text((60, 344), subtitle, font=_font(38, bold=True), fill=_MUTED)
-    _page_tag(draw, m.ticker, step)
+    img = Image.new("RGB", (W, H), _PAGE)
+    draw = ImageDraw.Draw(img)
+    y = _TOP
+
+    # header: (trend badge) + ticker + name
+    if c.category:
+        w = draw.textlength(c.category, font=_font(26, bold=True))
+        draw.rounded_rectangle((40, y, 40 + w + 40, y + 46), radius=12, fill=_BRAND)
+        draw.text((60, y + 8), c.category, font=_font(26, bold=True), fill=(255, 255, 255))
+        y += 60
+    x = _market_badge(draw, 40, y + 10, m.market)
+    draw.text((x, y), m.ticker, font=_font(54, bold=True), fill=_FG)
+    draw.text((x, y + 62), f"{m.name} · {m.sector}"[:38], font=_font(26), fill=_MUTED)
+    y += 122
+
+    # ── Card 01 · Fundamental ────────────────────────────────────────────────
+    f_lvl, _ = ind.tendency(m.fund_score, "fund")
+    fh = 396
+    draw.rounded_rectangle((40, y, W - 40, y + fh), radius=28, fill=_CARD_LT)
+    _section_title(draw, 76, y + 30, "01", "Fundamental", f_lvl)
+    tiles = [
+        (_fig(m.pe), "KGV"),
+        (f"{m.dividend_yield:.1f} %".replace(".", ",") if m.dividend_yield else "—", "Div.-Rendite"),
+        (_fig(m.revenue_growth, pct=True), "Umsatz +"),
+        (_fig(m.profit_margin, pct=True), "Marge"),
+    ]
+    tw, gap = 218, 14
+    tx = 76
+    for value, label in tiles:
+        _stat_tile(draw, (tx, y + 108, tx + tw, y + 232), value, label)
+        tx += tw + gap
+    _wrap_px(draw, c.fundamental_text, _font(30), 76, y + 262, W - 76, _INK, 40, max_lines=3)
+    y += fh + 26
+
+    # ── Card 02 · Charttechnik ───────────────────────────────────────────────
+    c_lvl, _ = ind.tendency(m.tech_score, "chart")
+    ch = 560
+    draw.rounded_rectangle((40, y, W - 40, y + ch), radius=28, fill=_CARD_LT)
+    _section_title(draw, 76, y + 30, "02", "Charttechnik", c_lvl)
+    _mini_chart(draw, (76, y + 108, 748, y + 380), m, c)
+    _val_box(draw, 782, y + 108, "ZIEL", f"{c.take_profit:.0f} {m.currency}", _ACCENT)
+    _val_box(draw, 782, y + 258, "STOP", f"{c.stop_loss:.0f} {m.currency}", _RED)
+    _wrap_px(draw, c.chart_text, _font(30), 76, y + 406, W - 76, _INK, 40, max_lines=3)
+    y += ch + 26
+
+    # ── Fazit strip ──────────────────────────────────────────────────────────
+    o_lvl, o_label = ind.tendency(m.blended, "overall")
+    draw.rounded_rectangle((40, y, W - 40, y + 300), radius=28, fill=_CHIP)
+    draw.text((76, y + 40), "FAZIT", font=_font(26, bold=True), fill=_MUTED)
+    for i, lv in enumerate(("neg", "neu", "pos")):
+        cx = 76 + i * 46
+        col = _LIGHT[lv] if lv == o_lvl else (74, 82, 94)
+        draw.ellipse((cx, y + 92, cx + 32, y + 124), fill=col)
+    draw.text((280, y + 34), f"Gesamtbild · {o_label}", font=_font(28, bold=True), fill=_MUTED)
+    yy = _wrap_px(draw, _FAZIT_HEADING.get(o_lvl, "Ausgewogenes Bild"), _font(46, bold=True),
+                  280, y + 72, W - 76, _FG, 54, max_lines=2)
+    if c.trend_reason:
+        _wrap_px(draw, f"Im Trend: {c.trend_reason}", _font(26), 280, yy + 8, W - 76,
+                 _BLUE, 34, max_lines=2)
+    else:
+        _wrap_px(draw, c.overall_text, _font(27), 280, yy + 8, W - 76, (214, 220, 226), 36, max_lines=3)
+
+    draw.text((44, H - 62), "Keine Anlageberatung · keine Kauf-/Verkaufsempfehlung · Werbung",
+              font=_font(24), fill=_MUTED)
+    return _save(img, out_path)
+
+
+# ── Candidate cards (3 per stock) ──────────────────────────────────────────
+def _card_header(draw, c: Candidate, kind_label: str, step: str) -> int:
+    """Prominent header below IG's profile overlay: optional TREND-AKTIE badge, a BIG
+    card-type pill (instantly clear whether this is Charttechnik / Fundamental /
+    Gesamtbild), then ticker + name. Returns the y to continue drawing at."""
+    m = c.metrics
+    y = _TOP
+    if c.category:  # e.g. "TREND-AKTIE"
+        w = draw.textlength(c.category, font=_font(26, bold=True))
+        draw.rounded_rectangle((_MARGIN, y, _MARGIN + w + 40, y + 48), radius=12, fill=_BRAND)
+        draw.text((_MARGIN + 20, y + 8), c.category, font=_font(26, bold=True), fill=(255, 255, 255))
+        y += 66
+    kf = _font(46, bold=True)
+    kw = draw.textlength(kind_label, font=kf)
+    draw.rounded_rectangle((_MARGIN, y, _MARGIN + kw + 56, y + 80), radius=18, fill=_BRAND)
+    draw.text((_MARGIN + 28, y + 12), kind_label, font=kf, fill=(255, 255, 255))
+    draw.text((W - 150, y + 24), step, font=_font(34, bold=True), fill=_MUTED)
+    y += 104
+    x = _market_badge(draw, _MARGIN, y + 12, m.market)
+    draw.text((x, y), m.ticker, font=_font(58, bold=True), fill=_FG)
+    y += 76
+    draw.text((_MARGIN, y), f"{m.name}  ·  {m.sector}"[:44], font=_font(28), fill=_MUTED)
+    return y + 62
 
 
 def render_chart_card(c: Candidate, out_path: str) -> str:
     img, draw = _new_card()
     m = c.metrics
-    _card_header(draw, c, "1 · Charttechnik", "1/3")
+    y = _card_header(draw, c, "CHARTTECHNIK", "1/3")
 
     level, label = ind.tendency(m.tech_score, "chart")
-    _signal_badge(draw, 60, 404, level, f"Chart: {label}", big=True)
-
-    _draw_chart(draw, (60, 480, W - 60, 930),
+    _signal_badge(draw, _MARGIN, y, level, f"Chart: {label}", big=True)
+    ctop = y + 96
+    _draw_chart(draw, (_MARGIN, ctop, W - _MARGIN, ctop + 430),
                 m.history_closes, c.stop_loss, c.take_profit, c.entry, m.currency)
 
-    # analysis text flows between the chart and the fixed risk-marks box
-    _wrap(draw, c.chart_text, _font(32), 60, 968, 46, _FG, 42)
+    # analysis text fills the full container width, between chart and the risk-marks box
+    _wrap_px(draw, c.chart_text, _font(38), _MARGIN, ctop + 460, W - _MARGIN, _FG, 50)
 
-    y = 1500  # fixed so the box always clears the footer, whatever the text length
-    draw.rounded_rectangle((60, y, W - 60, y + 232), radius=24, fill=_CARD)
-    draw.text((90, y + 22), "Charttechnische Marken (keine Empfehlung)",
+    ry = 1474  # fixed so the box always clears the footer, whatever the text length
+    draw.rounded_rectangle((_MARGIN, ry, W - _MARGIN, ry + 226), radius=24, fill=_CARD)
+    draw.text((90, ry + 20), "Charttechnische Marken (keine Empfehlung)",
               font=_font(28, bold=True), fill=_MUTED)
-    _level_row(draw, y + 80, "Referenz (Schluss)", f"{c.entry:.2f} {m.currency}", _FG)
-    _level_row(draw, y + 134, "Risikomarke (Stop)", f"{c.stop_loss:.2f} {m.currency}", _RED)
-    _level_row(draw, y + 188, "Potenzialmarke (Ziel)", f"{c.take_profit:.2f} {m.currency}", _ACCENT)
+    _level_row(draw, ry + 76, "Referenz (Schluss)", f"{c.entry:.2f} {m.currency}", _FG)
+    _level_row(draw, ry + 128, "Risikomarke (Stop)", f"{c.stop_loss:.2f} {m.currency}", _RED)
+    _level_row(draw, ry + 180, "Potenzialmarke (Ziel)", f"{c.take_profit:.2f} {m.currency}", _ACCENT)
     return _save(img, out_path)
 
 
@@ -210,34 +409,34 @@ def _fig(value, suffix="", pct=False):
 def render_fundamental_card(c: Candidate, out_path: str) -> str:
     img, draw = _new_card()
     m = c.metrics
-    _card_header(draw, c, "2 · Fundamental", "2/3")
+    y = _card_header(draw, c, "FUNDAMENTAL", "2/3")
 
     level, label = ind.tendency(m.fund_score, "fund")
-    _signal_badge(draw, 60, 410, level, f"Fundamental: {label}", big=True)
+    _signal_badge(draw, _MARGIN, y, level, f"Fundamental: {label}", big=True)
 
-    y = 540
-    draw.rounded_rectangle((60, y, W - 60, y + 300), radius=24, fill=_CARD)
+    y += 96
+    draw.rounded_rectangle((_MARGIN, y, W - _MARGIN, y + 300), radius=24, fill=_CARD)
     draw.text((90, y + 22), "Kennzahlen (einfach erklärt)", font=_font(28, bold=True), fill=_MUTED)
     _level_row(draw, y + 80, "KGV (Preis je € Gewinn)", _fig(m.pe), _FG)
     _level_row(draw, y + 134, "Umsatzwachstum", _fig(m.revenue_growth, pct=True), _FG)
     _level_row(draw, y + 188, "Gewinnmarge", _fig(m.profit_margin, pct=True), _FG)
     _level_row(draw, y + 242, "Fundamental-Score", f"{m.fund_score:.2f}", _LIGHT[level])
 
-    _wrap(draw, c.fundamental_text, _font(36), 60, y + 350, 40, _FG, 48)
+    _wrap_px(draw, c.fundamental_text, _font(42), _MARGIN, y + 348, W - _MARGIN, _FG, 54)
     return _save(img, out_path)
 
 
 def render_overall_card(c: Candidate, out_path: str) -> str:
     img, draw = _new_card()
     m = c.metrics
-    _card_header(draw, c, "3 · Gesamtbild", "3/3")
+    y = _card_header(draw, c, "GESAMTBILD", "3/3")
 
     o_level, o_label = ind.tendency(m.blended, "overall")
-    _signal_badge(draw, 60, 420, o_level, f"Gesamtbild: {o_label}", big=True)
+    _signal_badge(draw, _MARGIN, y, o_level, f"Gesamtbild: {o_label}", big=True)
 
     # recap of the two dimensions as small lights
-    y = 560
-    draw.rounded_rectangle((60, y, W - 60, y + 200), radius=24, fill=_CARD)
+    y += 96
+    draw.rounded_rectangle((_MARGIN, y, W - _MARGIN, y + 200), radius=24, fill=_CARD)
     c_level, c_label = ind.tendency(m.tech_score, "chart")
     f_level, f_label = ind.tendency(m.fund_score, "fund")
     _signal_badge(draw, 90, y + 30, c_level, f"Charttechnik — {c_label}")
@@ -245,19 +444,19 @@ def render_overall_card(c: Candidate, out_path: str) -> str:
 
     y += 260
     if c.trend_reason:
-        y = _wrap(draw, f"Im Trend: {c.trend_reason}", _font(34), 60, y, 40, _BRAND, 44)
-        y += 16
-    _wrap(draw, c.overall_text, _font(38), 60, y, 38, _FG, 50)
+        y = _wrap_px(draw, f"Im Trend: {c.trend_reason}", _font(34), _MARGIN, y, W - _MARGIN, _BLUE, 46)
+        y += 18
+    _wrap_px(draw, c.overall_text, _font(44), _MARGIN, y, W - _MARGIN, _FG, 56)
     return _save(img, out_path)
 
 
 # ── Earnings + overview cards ──────────────────────────────────────────────
 def render_earnings_card(items: list[EarningsItem], out_path: str, day_label: str) -> str:
     img, draw = _new_card()
-    draw.text((60, 200), "Quartalszahlen heute", font=_font(64, bold=True), fill=_FG)
-    draw.text((60, 290), day_label, font=_font(34), fill=_MUTED)
+    draw.text((_MARGIN, _TOP), "Quartalszahlen heute", font=_font(64, bold=True), fill=_FG)
+    draw.text((_MARGIN, _TOP + 90), day_label, font=_font(34), fill=_MUTED)
 
-    y = 400
+    y = _TOP + 200
     if not items:
         draw.text((60, y), "Heute keine relevanten Termine.", font=_font(40), fill=_MUTED)
         return _save(img, out_path)
@@ -276,11 +475,11 @@ def render_earnings_card(items: list[EarningsItem], out_path: str, day_label: st
 
 def render_candidates_overview_card(candidates: list[Candidate], out_path: str) -> str:
     img, draw = _new_card()
-    draw.text((60, 200), "Auf der Watchlist heute", font=_font(60, bold=True), fill=_FG)
-    draw.text((60, 285), "Charttechnik + Fundamental · verschiedene Branchen",
+    draw.text((_MARGIN, _TOP), "Auf der Watchlist heute", font=_font(60, bold=True), fill=_FG)
+    draw.text((_MARGIN, _TOP + 85), "Charttechnik + Fundamental · verschiedene Branchen",
               font=_font(32), fill=_MUTED)
 
-    y = 400
+    y = _TOP + 200
     for c in candidates:
         m = c.metrics
         o_level, _ = ind.tendency(m.blended, "overall")

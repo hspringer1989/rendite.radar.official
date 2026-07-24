@@ -20,11 +20,9 @@ from src.models import Candidate
 from src.stocks.analyzer import build_candidates
 from src.stocks.market_data import MarketData, get_earnings_calendar, get_market_data
 from src.stocks.story_cards import (
+    render_analysis_card,
     render_candidates_overview_card,
-    render_chart_card,
     render_earnings_card,
-    render_fundamental_card,
-    render_overall_card,
 )
 from src.storage.database import StoryRow, session_scope
 
@@ -167,19 +165,11 @@ def _persist_candidate_cards(
 
     stamp = _stamp()
     lead = "🔥 Trend-Aktie" if kind == "trend" else f"{m.ticker} · {m.sector}"
-    parts = [
-        ("chart", render_chart_card, "Charttechnik"),
-        ("fundamental", render_fundamental_card, "Fundamental"),
-        ("overall", render_overall_card, "Gesamtbild"),
-    ]
-    ids: list[int] = []
-    for part, render, label in parts:
-        path = render(c, str(out_dir / f"{kind}_{m.ticker}_{part}_{stamp}.jpg"))
-        caption = f"{lead} — {m.ticker} · {label}\n\n{_DISCLAIMER}"
-        ids.append(_persist(kind, path, caption, trade_date,
-                            ticker=m.ticker, market=m.market, part=part,
-                            analysis=asdict(c) if part == "overall" else None))
-    return ids
+    # ONE combined card per stock: Charttechnik + Fundamental + Gesamtfazit on a single story
+    path = render_analysis_card(c, str(out_dir / f"{kind}_{m.ticker}_{stamp}.jpg"))
+    caption = f"{lead} — {m.ticker}: Charttechnik · Fundamental · Fazit\n\n{_DISCLAIMER}"
+    return [_persist(kind, path, caption, trade_date,
+                     ticker=m.ticker, market=m.market, part="full", analysis=asdict(c))]
 
 
 async def _publish_one(story_id: int) -> int | None:
